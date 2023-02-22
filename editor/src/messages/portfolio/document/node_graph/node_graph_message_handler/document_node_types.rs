@@ -171,11 +171,97 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 			properties: node_properties::input_properties,
 		},
 		DocumentNodeType {
+			name: "Begin Scope",
+			category: "Structural",
+			identifier: NodeImplementation::DocumentNode(NodeNetwork {
+				inputs: vec![0, 2],
+				outputs: vec![NodeOutput::new(1, 0), NodeOutput::new(3, 0)],
+				nodes: [
+					DocumentNode {
+						name: "SetNode".to_string(),
+						inputs: vec![NodeInput::Network(concrete!(Image))],
+						implementation: DocumentNodeImplementation::Unresolved(NodeIdentifier::new("graphene_core::ops::SomeNode")),
+						metadata: Default::default(),
+					},
+					DocumentNode {
+						name: "LetNode".to_string(),
+						inputs: vec![NodeInput::node(0, 0)],
+						implementation: DocumentNodeImplementation::Unresolved(NodeIdentifier::new("graphene_std::memo::LetNode<_>")),
+						metadata: Default::default(),
+					},
+					DocumentNode {
+						name: "RefNode".to_string(),
+						inputs: vec![NodeInput::Network(concrete!(())), NodeInput::lambda(1, 0)],
+						implementation: DocumentNodeImplementation::Unresolved(NodeIdentifier::new("graphene_std::memo::RefNode<_, _>")),
+						metadata: Default::default(),
+					},
+					DocumentNode {
+						name: "CloneNode".to_string(),
+						inputs: vec![NodeInput::node(2, 0)],
+						implementation: DocumentNodeImplementation::Unresolved(NodeIdentifier::new("graphene_core::ops::CloneNode<_>")),
+						metadata: Default::default(),
+					},
+				]
+				.into_iter()
+				.enumerate()
+				.map(|(id, node)| (id as NodeId, node))
+				.collect(),
+
+				..Default::default()
+			}),
+			inputs: vec![
+				DocumentInputType {
+					name: "In",
+					data_type: FrontendGraphDataType::Raster,
+					default: NodeInput::value(TaggedValue::ImageFrame(ImageFrame::empty()), true),
+				},
+				DocumentInputType {
+					name: "In",
+					data_type: FrontendGraphDataType::General,
+					default: NodeInput::value(TaggedValue::None, false),
+				},
+			],
+			outputs: vec![
+				DocumentOutputType {
+					name: "Scope",
+					data_type: FrontendGraphDataType::General,
+				},
+				DocumentOutputType {
+					name: "Binding",
+					data_type: FrontendGraphDataType::Raster,
+				},
+			],
+			properties: |_document_node, _node_id, _context| node_properties::string_properties("Binds the input in a local scope as a variable"),
+		},
+		DocumentNodeType {
+			name: "End Scope",
+			category: "Structural",
+			identifier: NodeImplementation::proto("graphene_std::memo::EndLetNode<_>"),
+			inputs: vec![
+				DocumentInputType {
+					name: "Scope",
+					data_type: FrontendGraphDataType::General,
+					default: NodeInput::value(TaggedValue::None, true),
+				},
+				DocumentInputType {
+					name: "Data",
+					data_type: FrontendGraphDataType::Raster,
+					default: NodeInput::value(TaggedValue::ImageFrame(ImageFrame::empty()), true),
+				},
+			],
+			outputs: vec![DocumentOutputType {
+				name: "Frame",
+				data_type: FrontendGraphDataType::Raster,
+			}],
+
+			properties: |_document_node, _node_id, _context| node_properties::string_properties("The graph's output is rendered into the frame"),
+		},
+		DocumentNodeType {
 			name: "Output",
 			category: "Ignore",
 			identifier: NodeImplementation::proto("graphene_core::ops::IdNode"),
 			inputs: vec![DocumentInputType {
-				name: "In",
+				name: "Output",
 				data_type: FrontendGraphDataType::Raster,
 				default: NodeInput::value(TaggedValue::ImageFrame(ImageFrame::empty()), true),
 			}],
@@ -650,6 +736,7 @@ impl DocumentNodeType {
 			}
 			NodeImplementation::DocumentNode(network) => network.clone(),
 		};
+
 		DocumentNodeImplementation::Network(inner_network)
 	}
 
@@ -659,6 +746,32 @@ impl DocumentNodeType {
 			inputs: inputs.into_iter().collect(),
 			implementation: self.generate_implementation(),
 			metadata,
+		}
+	}
+	fn wrap_network_in_scope(&self) -> DocumentNode {
+		assert_eq!(self.inputs.len(), 1);
+		let input_type = NodeInput::Network(self.inputs[0].default.ty());
+		// wrap the inner network in a scope
+		let nodes = vec![
+			resolve_document_node_type("Begin Scope")
+				.expect("Begin Scope node type not found")
+				.to_document_node(vec![input_type.clone()], DocumentNodeMetadata::default()),
+			self.to_document_node(vec![NodeInput::node(0, 1)], DocumentNodeMetadata::default()),
+			resolve_document_node_type("End Scope")
+				.expect("End Scope node type not found")
+				.to_document_node(vec![NodeInput::node(0, 0), NodeInput::node(1, 0)], DocumentNodeMetadata::default()),
+		];
+		let network = NodeNetwork {
+			inputs: vec![0],
+			outputs: vec![NodeOutput::new(2, 0)],
+			nodes: nodes.into_iter().enumerate().map(|(id, node)| (id as NodeId, node)).collect(),
+			..Default::default()
+		};
+		DocumentNode {
+			name: "Scope".to_string(),
+			implementation: DocumentNodeImplementation::Network(network),
+			inputs: vec![input_type],
+			metadata: DocumentNodeMetadata::default(),
 		}
 	}
 }
