@@ -11,6 +11,7 @@ pub mod consts;
 pub mod generic;
 pub mod ops;
 pub mod structural;
+#[cfg(feature = "std")]
 pub mod uuid;
 pub mod value;
 
@@ -33,6 +34,7 @@ pub trait Node<'i, Input: 'i>: 'i {
 
 #[cfg(feature = "alloc")]
 mod types;
+#[cfg(feature = "alloc")]
 pub use types::*;
 
 pub trait NodeIO<'i, Input: 'i>: 'i + Node<'i, Input>

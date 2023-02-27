@@ -449,9 +449,15 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 		DocumentNodeType {
 			name: "GpuImage",
 			category: "Image Adjustments",
-			identifier: NodeImplementation::proto("graphene_std::executor::MapGpuSingleImageNode"),
+			identifier: NodeImplementation::proto("graphene_std::executor::MapGpuSingleImageNode<_>"),
 			inputs: vec![
+<<<<<<< HEAD
 				DocumentInputType::new("Image", TaggedValue::ImageFrame(ImageFrame::empty()), true),
+||||||| parent of 1bc1caad (Fix gpu support)
+				DocumentInputType::new("Image", TaggedValue::Image(Image::empty()), true),
+=======
+				DocumentInputType::value("Image", TaggedValue::Image(Image::empty()), true),
+>>>>>>> 1bc1caad (Fix gpu support)
 				DocumentInputType {
 					name: "Path",
 					data_type: FrontendGraphDataType::Text,
@@ -465,7 +471,7 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 		DocumentNodeType {
 			name: "QuantizeImage",
 			category: "Image Adjustments",
-			identifier: NodeImplementation::proto("graphene_std::quantization::GenerateQuantizationNode"),
+			identifier: NodeImplementation::proto("graphene_std::quantization::GenerateQuantizationNode<_, _>"),
 			inputs: vec![
 				DocumentInputType {
 					name: "Image",
