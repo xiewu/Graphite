@@ -10,7 +10,7 @@ pub struct GenerateQuantizationNode<N, M> {
 }
 
 #[node_macro::node_fn(GenerateQuantizationNode)]
-fn generate_quantization_fn(image: Image, samples: u32, function: u32) -> Image {
+fn generate_quantization_fn(image: Image, samples: u32, function: u32) -> Quantization {
 	// Scale the input image, this can be removed by adding an extra parameter to the fit function.
 	let max_energy = 16380.;
 	let data: Vec<f64> = image.data.iter().flat_map(|x| vec![x.r() as f64, x.g() as f64, x.b() as f64]).collect();
@@ -19,36 +19,82 @@ fn generate_quantization_fn(image: Image, samples: u32, function: u32) -> Image 
 	autoquant::drop_duplicates(&mut dist);
 	let dist = autoquant::normalize_distribution(dist.as_slice());
 	let max = dist.last().unwrap().0;
-	let linear = Box::new(autoquant::SimpleFitFn {
+	/*let linear = Box::new(autoquant::SimpleFitFn {
 		function: move |x| x / max,
 		inverse: move |x| x * max,
 		name: "identity",
-	});
-	let best = match function {
-		0 => linear as Box<dyn autoquant::FitFn>,
-		1 => linear as Box<dyn autoquant::FitFn>,
-		2 => Box::new(autoquant::models::OptimizedLog::new(dist, 20)) as Box<dyn autoquant::FitFn>,
-		_ => linear as Box<dyn autoquant::FitFn>,
+	});*/
+
+	let linear = Quantization {
+		fn_index: 0,
+		a: max as f32,
+		b: 0.,
+		c: 0.,
+		d: 0.,
 	};
-
-	let roundtrip = |sample: f32| -> f32 {
-		let encoded = autoquant::encode(sample as f64 * max_energy, best.as_ref(), samples);
-		let decoded = autoquant::decode(encoded, best.as_ref(), samples) / max_energy;
-		log::trace!("{} enc: {} dec: {}", sample, encoded, decoded);
-		decoded as f32
+	let log_fit = autoquant::models::OptimizedLog::new(dist, samples as u64);
+	let parameters = log_fit.parameters();
+	let log_fit = Quantization {
+		fn_index: 1,
+		a: parameters[0] as f32,
+		b: parameters[1] as f32,
+		c: parameters[2] as f32,
+		d: parameters[3] as f32,
 	};
+	log_fit
+}
 
-	let new_data = image
-		.data
-		.iter()
-		.map(|c| {
-			let r = roundtrip(c.r());
-			let g = roundtrip(c.g());
-			let b = roundtrip(c.b());
-			let a = c.a();
+#[derive(Clone, Debug)]
+struct Quantization {
+	fn_index: usize,
+	a: f32,
+	b: f32,
+	c: f32,
+	d: f32,
+}
 
-			Color::from_rgbaf32_unchecked(r, g, b, a)
-		})
-		.collect();
-	Image { data: new_data, ..image }
+fn quantize(value: f32, quantization: &Quantization) -> f32 {
+	let Quantization { fn_index, a, b, c, d } = quantization;
+	match fn_index {
+		1 => ((value + a) * d).abs().ln() * b + c,
+		_ => a * value + b,
+	}
+}
+
+fn decode(value: f32, quantization: &Quantization) -> f32 {
+	let Quantization { fn_index, a, b, c, d } = quantization;
+	match fn_index {
+		1 => -(-c / b).exp() * (a * d * (c / b).exp() - (value / b).exp()) / d,
+		_ => (value - b) / a,
+	}
+}
+
+pub struct QuantizeNode<Quantization> {
+	quantization: Quantization,
+}
+
+#[node_macro::node_fn(QuantizeNode)]
+fn quantize_fn<'a>(color: Color, quantization: &'a [Quantization; 4]) -> Color {
+	let quant = quantization.as_slice();
+	let r = quantize(color.r(), &quant[0]);
+	let g = quantize(color.g(), &quant[1]);
+	let b = quantize(color.b(), &quant[2]);
+	let a = quantize(color.a(), &quant[3]);
+
+	Color::from_rgbaf32_unchecked(r, g, b, a)
+}
+
+pub struct DeQuantizeNode<Quantization> {
+	quantization: Quantization,
+}
+
+#[node_macro::node_fn(DeQuantizeNode)]
+fn dequantize_fn<'a>(color: Color, quantization: &'a [Quantization; 4]) -> Color {
+	let quant = quantization.as_slice();
+	let r = decode(color.r(), &quant[0]);
+	let g = decode(color.g(), &quant[1]);
+	let b = decode(color.b(), &quant[2]);
+	let a = decode(color.a(), &quant[3]);
+
+	Color::from_rgbaf32_unchecked(r, g, b, a)
 }
