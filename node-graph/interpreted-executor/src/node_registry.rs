@@ -10,7 +10,7 @@ use graphene_core::structural::Then;
 use graphene_core::value::{ClonedNode, ForgetNode, ValueNode};
 use graphene_core::{Node, NodeIO, NodeIOTypes};
 
-use graphene_std::any::{ComposeTypeErased, DowncastBothNode, DowncastBothRefNode, DynAnyInRefNode, DynAnyNode, DynAnyRefNode, IntoTypeErasedNode, TypeErasedPinnedRef};
+use graphene_std::any::{ComposeTypeErased, DowncastBothNode, DowncastBothRefNode, DynAnyInRefNode, DynAnyNode, DynAnyRefNode, IntoTypeErasedNode, TypeErasedPinnedRef, TypeErasedPinnedRef};
 
 use graphene_core::{Cow, NodeIdentifier, Type, TypeDescriptor};
 

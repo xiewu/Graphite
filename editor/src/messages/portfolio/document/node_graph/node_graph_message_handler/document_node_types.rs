@@ -451,13 +451,8 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 			category: "Image Adjustments",
 			identifier: NodeImplementation::proto("graphene_std::executor::MapGpuSingleImageNode<_>"),
 			inputs: vec![
-<<<<<<< HEAD
 				DocumentInputType::new("Image", TaggedValue::ImageFrame(ImageFrame::empty()), true),
-||||||| parent of 1bc1caad (Fix gpu support)
-				DocumentInputType::new("Image", TaggedValue::Image(Image::empty()), true),
-=======
-				DocumentInputType::value("Image", TaggedValue::Image(Image::empty()), true),
->>>>>>> 1bc1caad (Fix gpu support)
+
 				DocumentInputType {
 					name: "Path",
 					data_type: FrontendGraphDataType::Text,
