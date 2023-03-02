@@ -45,7 +45,7 @@ fn generate_quantization_fn(image: Image, samples: u32, function: u32) -> Quanti
 }
 
 #[derive(Clone, Debug)]
-struct Quantization {
+pub struct Quantization {
 	fn_index: usize,
 	a: f32,
 	b: f32,
