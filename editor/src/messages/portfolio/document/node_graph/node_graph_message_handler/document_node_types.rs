@@ -452,7 +452,6 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 			identifier: NodeImplementation::proto("graphene_std::executor::MapGpuSingleImageNode<_>"),
 			inputs: vec![
 				DocumentInputType::new("Image", TaggedValue::ImageFrame(ImageFrame::empty()), true),
-
 				DocumentInputType {
 					name: "Path",
 					data_type: FrontendGraphDataType::Text,
@@ -464,7 +463,7 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 		},
 		#[cfg(feature = "quantization")]
 		DocumentNodeType {
-			name: "QuantizeImage",
+			name: "Generate Quantization",
 			category: "Image Adjustments",
 			identifier: NodeImplementation::proto("graphene_std::quantization::GenerateQuantizationNode<_, _>"),
 			inputs: vec![
@@ -484,7 +483,27 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 					default: NodeInput::value(TaggedValue::U32(0), false),
 				},
 			],
-			outputs: vec![DocumentOutputType::new("Image", FrontendGraphDataType::Raster)],
+			outputs: vec![DocumentOutputType::new("Quantization", FrontendGraphDataType::General)],
+			properties: node_properties::quantize_properties,
+		},
+		#[cfg(feature = "quantization")]
+		DocumentNodeType {
+			name: "Quantize Image",
+			category: "Image Adjustments",
+			identifier: NodeImplementation::proto("graphene_std::quantization::GenerateQuantizationNode<_, _>"),
+			inputs: vec![
+				DocumentInputType {
+					name: "Image",
+					data_type: FrontendGraphDataType::Raster,
+					default: NodeInput::value(TaggedValue::ImageFrame(ImageFrame::empty()), true),
+				},
+				DocumentInputType {
+					name: "quantization",
+					data_type: FrontendGraphDataType::General,
+					default: NodeInput::value(TaggedValue::U32(100), false),
+				},
+			],
+			outputs: vec![DocumentOutputType::new("Quantization", FrontendGraphDataType::General)],
 			properties: node_properties::quantize_properties,
 		},
 		DocumentNodeType {
