@@ -15,7 +15,7 @@ pub struct GenerateQuantizationNode<N, M> {
 fn generate_quantization_fn(image_frame: ImageFrame, samples: u32, function: u32) -> [Quantization; 4] {
 	let image = image_frame.image;
 
-	let len = image.data.len().min(1000);
+	let len = image.data.len().min(10000);
 	let mut channels: Vec<_> = (0..4).map(|_| Vec::with_capacity(image.data.len())).collect();
 	image
 		.data
