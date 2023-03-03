@@ -464,7 +464,7 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 		#[cfg(feature = "quantization")]
 		DocumentNodeType {
 			name: "Generate Quantization",
-			category: "Image Adjustments",
+			category: "Quantization",
 			identifier: NodeImplementation::proto("graphene_std::quantization::GenerateQuantizationNode<_, _>"),
 			inputs: vec![
 				DocumentInputType {
@@ -489,8 +489,8 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 		#[cfg(feature = "quantization")]
 		DocumentNodeType {
 			name: "Quantize Image",
-			category: "Image Adjustments",
-			identifier: NodeImplementation::proto("graphene_std::quantization::GenerateQuantizationNode<_, _>"),
+			category: "Quantization",
+			identifier: NodeImplementation::proto("graphene_core::quantization::QuantizeNode<_>"),
 			inputs: vec![
 				DocumentInputType {
 					name: "Image",
@@ -498,12 +498,32 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 					default: NodeInput::value(TaggedValue::ImageFrame(ImageFrame::empty()), true),
 				},
 				DocumentInputType {
-					name: "quantization",
+					name: "Quantization",
 					data_type: FrontendGraphDataType::General,
-					default: NodeInput::value(TaggedValue::U32(100), false),
+					default: NodeInput::value(TaggedValue::Quantization(core::array::from_fn(|_| Default::default())), true),
 				},
 			],
-			outputs: vec![DocumentOutputType::new("Quantization", FrontendGraphDataType::General)],
+			outputs: vec![DocumentOutputType::new("Encoded", FrontendGraphDataType::Raster)],
+			properties: node_properties::quantize_properties,
+		},
+		#[cfg(feature = "quantization")]
+		DocumentNodeType {
+			name: "DeQuantize Image",
+			category: "Quantization",
+			identifier: NodeImplementation::proto("graphene_core::quantization::DeQuantizeNode<_>"),
+			inputs: vec![
+				DocumentInputType {
+					name: "Encoded",
+					data_type: FrontendGraphDataType::Raster,
+					default: NodeInput::value(TaggedValue::ImageFrame(ImageFrame::empty()), true),
+				},
+				DocumentInputType {
+					name: "Quantization",
+					data_type: FrontendGraphDataType::General,
+					default: NodeInput::value(TaggedValue::Quantization(core::array::from_fn(|_| Default::default())), true),
+				},
+			],
+			outputs: vec![DocumentOutputType::new("Decoded", FrontendGraphDataType::Raster)],
 			properties: node_properties::quantize_properties,
 		},
 		DocumentNodeType {

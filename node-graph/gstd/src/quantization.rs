@@ -1,4 +1,5 @@
 use dyn_any::{DynAny, StaticType};
+use graphene_core::quantization::*;
 use graphene_core::raster::{Color, ImageFrame};
 use graphene_core::Node;
 
@@ -11,12 +12,25 @@ pub struct GenerateQuantizationNode<N, M> {
 }
 
 #[node_macro::node_fn(GenerateQuantizationNode)]
-fn generate_quantization_fn(image_frame: ImageFrame, samples: u32, function: u32) -> Quantization {
+fn generate_quantization_fn(image_frame: ImageFrame, samples: u32, function: u32) -> [Quantization; 4] {
 	let image = image_frame.image;
-	// Scale the input image, this can be removed by adding an extra parameter to the fit function.
-	let max_energy = 16380.;
-	let data: Vec<f64> = image.data.iter().flat_map(|x| vec![x.r() as f64, x.g() as f64, x.b() as f64]).collect();
-	let data: Vec<f64> = data.iter().map(|x| x * max_energy).collect();
+
+	let len = image.data.len().min(1000);
+	let mut channels: Vec<_> = (0..4).map(|_| Vec::with_capacity(image.data.len())).collect();
+	image
+		.data
+		.iter()
+		.enumerate()
+		.filter(|(i, _)| i % (image.data.len() / len) == 0)
+		.map(|(_, x)| vec![x.r() as f64, x.g() as f64, x.b() as f64, x.a() as f64])
+		.for_each(|x| x.into_iter().enumerate().for_each(|(i, value)| channels[i].push(value)));
+	log::info!("Quantizing {} samples", channels[0].len());
+	log::info!("In {} channels", channels.len());
+	let quantization: Vec<Quantization> = channels.into_iter().map(|x| generate_quantization_per_channel(x, samples)).collect();
+	core::array::from_fn(|i| quantization[i].clone())
+}
+
+fn generate_quantization_per_channel(data: Vec<f64>, samples: u32) -> Quantization {
 	let mut dist = autoquant::integrate_distribution(data);
 	autoquant::drop_duplicates(&mut dist);
 	let dist = autoquant::normalize_distribution(dist.as_slice());
@@ -44,59 +58,4 @@ fn generate_quantization_fn(image_frame: ImageFrame, samples: u32, function: u32
 		d: parameters[3] as f32,
 	};
 	log_fit
-}
-
-#[derive(Clone, Debug, DynAny)]
-pub struct Quantization {
-	fn_index: usize,
-	a: f32,
-	b: f32,
-	c: f32,
-	d: f32,
-}
-
-fn quantize(value: f32, quantization: &Quantization) -> f32 {
-	let Quantization { fn_index, a, b, c, d } = quantization;
-	match fn_index {
-		1 => ((value + a) * d).abs().ln() * b + c,
-		_ => a * value + b,
-	}
-}
-
-fn decode(value: f32, quantization: &Quantization) -> f32 {
-	let Quantization { fn_index, a, b, c, d } = quantization;
-	match fn_index {
-		1 => -(-c / b).exp() * (a * d * (c / b).exp() - (value / b).exp()) / d,
-		_ => (value - b) / a,
-	}
-}
-
-pub struct QuantizeNode<Quantization> {
-	quantization: Quantization,
-}
-
-#[node_macro::node_fn(QuantizeNode)]
-fn quantize_fn<'a>(color: Color, quantization: &'a [Quantization; 4]) -> Color {
-	let quant = quantization.as_slice();
-	let r = quantize(color.r(), &quant[0]);
-	let g = quantize(color.g(), &quant[1]);
-	let b = quantize(color.b(), &quant[2]);
-	let a = quantize(color.a(), &quant[3]);
-
-	Color::from_rgbaf32_unchecked(r, g, b, a)
-}
-
-pub struct DeQuantizeNode<Quantization> {
-	quantization: Quantization,
-}
-
-#[node_macro::node_fn(DeQuantizeNode)]
-fn dequantize_fn<'a>(color: Color, quantization: &'a [Quantization; 4]) -> Color {
-	let quant = quantization.as_slice();
-	let r = decode(color.r(), &quant[0]);
-	let g = decode(color.g(), &quant[1]);
-	let b = decode(color.b(), &quant[2]);
-	let a = decode(color.a(), &quant[3]);
-
-	Color::from_rgbaf32_unchecked(r, g, b, a)
 }

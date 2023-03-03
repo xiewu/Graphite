@@ -24,6 +24,9 @@ use crate::executor::NodeContainer;
 
 use dyn_any::StaticType;
 
+#[cfg(feature = "quantization")]
+use graphene_core::quantization::{Quantization, QuantizationChannels};
+
 macro_rules! construct_node {
 	($args: ident, $path:ty, [$($type:tt),*]) => {{
 		let mut args: Vec<TypeErasedPinnedRef<'static>> = $args.clone();
@@ -295,15 +298,27 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 				},
 				NodeIOTypes::new(concrete!(Image), concrete!(&Image), vec![]),
 			),
+			#[cfg(feature = "quantization")]
+			(
+				NodeIdentifier::new("graphene_std::memo::CacheNode"),
+				|_| {
+					let node: CacheNode<QuantizationChannels> = graphene_std::memo::CacheNode::new();
+					let any = DynAnyRefNode::new(node);
+					any.into_type_erased()
+				},
+				NodeIOTypes::new(concrete!(QuantizationChannels), concrete!(&QuantizationChannels), vec![]),
+			),
 		],
 		register_node!(graphene_core::structural::ConsNode<_, _>, input: Image, params: [&str]),
 		register_node!(graphene_std::raster::ImageFrameNode<_>, input: Image, params: [DAffine2]),
 		#[cfg(feature = "quantization")]
 		register_node!(graphene_std::quantization::GenerateQuantizationNode<_, _>, input: ImageFrame, params: [u32, u32]),
 		#[cfg(feature = "quantization")]
-		raster_node!(graphene_std::quantization::QuantizeNode<_>, params: [&[graphene_std::quantization::Quantization; 4]]),
+		raster_node!(graphene_core::quantization::QuantizeNode<_>, params: [QuantizationChannels]),
 		#[cfg(feature = "quantization")]
-		raster_node!(graphene_std::quantization::DeQuantizeNode<_>, params: [&[graphene_std::quantization::Quantization; 4]]),
+		raster_node!(graphene_core::quantization::DeQuantizeNode<_>, params: [QuantizationChannels]),
+		#[cfg(feature = "quantization")]
+		register_node!(graphene_core::ops::CloneNode<_>, input: &QuantizationChannels, params: []),
 		register_node!(graphene_core::vector::TransformNode<_, _, _, _>, input: VectorData, params: [DVec2, f64, DVec2, DVec2]),
 		register_node!(graphene_core::vector::SetFillNode<_, _, _, _, _, _, _>, input: VectorData, params: [ graphene_core::vector::style::FillType, graphene_core::Color, graphene_core::vector::style::GradientType, DVec2, DVec2, DAffine2, Vec<(f64, Option<graphene_core::Color>)>]),
 		register_node!(graphene_core::vector::SetStrokeNode<_, _, _, _, _, _, _>, input: VectorData, params: [graphene_core::Color, f64, Vec<f32>, f64, graphene_core::vector::style::LineCap, graphene_core::vector::style::LineJoin, f64]),

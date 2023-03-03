@@ -23,6 +23,8 @@ pub mod raster;
 #[cfg(feature = "alloc")]
 pub mod vector;
 
+pub mod quantization;
+
 use core::any::TypeId;
 pub use raster::Color;
 
