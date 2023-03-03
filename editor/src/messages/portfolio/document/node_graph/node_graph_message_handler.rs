@@ -46,7 +46,7 @@ impl FrontendGraphDataType {
 			TaggedValue::Image(_) => Self::Raster,
 			TaggedValue::ImageFrame(_) => Self::Raster,
 			TaggedValue::Color(_) => Self::Color,
-			TaggedValue::RcSubpath(_) | TaggedValue::Subpath(_) => Self::Subpath,
+			TaggedValue::RcSubpath(_) | TaggedValue::Subpath(_) | TaggedValue::VectorData(_) => Self::Subpath,
 			_ => Self::General,
 		}
 	}
@@ -281,7 +281,7 @@ impl NodeGraphMessageHandler {
 					node_id: link_start,
 					output_index: link_start_index,
 					// TODO: add ui for lambdas
-					lambda,
+					lambda: _,
 				} = *input
 				{
 					Some(FrontendNodeLink {

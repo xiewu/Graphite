@@ -6,7 +6,7 @@ use crate::messages::prelude::*;
 
 use document_legacy::{document::pick_safe_imaginate_resolution, layers::layer_info::LayerDataType};
 use document_legacy::{LayerId, Operation};
-use graph_craft::document::{generate_uuid, value::TaggedValue, NodeId, NodeInput, NodeNetwork, NodeOutput};
+use graph_craft::document::{generate_uuid, NodeId, NodeInput, NodeNetwork, NodeOutput};
 use graph_craft::executor::Compiler;
 use graphene_core::raster::{Image, ImageFrame};
 use interpreted_executor::executor::DynamicExecutor;
@@ -121,7 +121,9 @@ impl NodeGraphExecutor {
 
 		let get = |name: &str| IMAGINATE_NODE.inputs.iter().position(|input| input.name == name).unwrap_or_else(|| panic!("Input {name} not found"));
 
-		let transform: DAffine2 = self.compute_input(&network, &imaginate_node, get("Transform"), Cow::Borrowed(&image_frame))?;
+		// Get the node graph layer
+		let layer = document.document_legacy.layer(&layer_path).map_err(|e| format!("No layer: {e:?}"))?;
+		let transform = layer.transform;
 
 		let resolution: Option<glam::DVec2> = self.compute_input(&network, &imaginate_node, get("Resolution"), Cow::Borrowed(&image_frame))?;
 		let resolution = resolution.unwrap_or_else(|| {
