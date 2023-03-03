@@ -1,4 +1,5 @@
-use graphene_core::raster::{Color, Image};
+use dyn_any::{DynAny, StaticType};
+use graphene_core::raster::{Color, ImageFrame};
 use graphene_core::Node;
 
 /// The `GenerateQuantizationNode` encodes the brightness of each channel of the image as an integer number
@@ -10,7 +11,8 @@ pub struct GenerateQuantizationNode<N, M> {
 }
 
 #[node_macro::node_fn(GenerateQuantizationNode)]
-fn generate_quantization_fn(image: Image, samples: u32, function: u32) -> Quantization {
+fn generate_quantization_fn(image_frame: ImageFrame, samples: u32, function: u32) -> Quantization {
+	let image = image_frame.image;
 	// Scale the input image, this can be removed by adding an extra parameter to the fit function.
 	let max_energy = 16380.;
 	let data: Vec<f64> = image.data.iter().flat_map(|x| vec![x.r() as f64, x.g() as f64, x.b() as f64]).collect();
@@ -44,7 +46,7 @@ fn generate_quantization_fn(image: Image, samples: u32, function: u32) -> Quanti
 	log_fit
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, DynAny)]
 pub struct Quantization {
 	fn_index: usize,
 	a: f32,

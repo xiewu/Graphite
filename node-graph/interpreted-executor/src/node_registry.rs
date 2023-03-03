@@ -301,9 +301,9 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 		#[cfg(feature = "quantization")]
 		register_node!(graphene_std::quantization::GenerateQuantizationNode<_, _>, input: ImageFrame, params: [u32, u32]),
 		#[cfg(feature = "quantization")]
-		raster_node!(graphene_std::quantization::QuantizeNode<_>, input: ImageFrame, params: [graphene_std::quantization::Quantization]),
+		raster_node!(graphene_std::quantization::QuantizeNode<_>, params: [&[graphene_std::quantization::Quantization; 4]]),
 		#[cfg(feature = "quantization")]
-		raster_node!(graphene_std::quantization::DeQuantizeNode<_>, input: ImageFrame, params: [graphene_std::quantization::Quantization]),
+		raster_node!(graphene_std::quantization::DeQuantizeNode<_>, params: [&[graphene_std::quantization::Quantization; 4]]),
 		register_node!(graphene_core::vector::TransformNode<_, _, _, _>, input: VectorData, params: [DVec2, f64, DVec2, DVec2]),
 		register_node!(graphene_core::vector::SetFillNode<_, _, _, _, _, _, _>, input: VectorData, params: [ graphene_core::vector::style::FillType, graphene_core::Color, graphene_core::vector::style::GradientType, DVec2, DVec2, DAffine2, Vec<(f64, Option<graphene_core::Color>)>]),
 		register_node!(graphene_core::vector::SetStrokeNode<_, _, _, _, _, _, _>, input: VectorData, params: [graphene_core::Color, f64, Vec<f32>, f64, graphene_core::vector::style::LineCap, graphene_core::vector::style::LineJoin, f64]),
