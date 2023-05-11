@@ -251,7 +251,8 @@ impl<'a> TaggedValue {
 	pub fn try_from_any(input: Box<dyn DynAny<'a> + 'a>) -> Option<Self> {
 		use dyn_any::downcast;
 		use std::any::TypeId;
-		match DynAny::type_id(&input) {
+
+		match DynAny::type_id(input.as_ref()) {
 			x if x == TypeId::of::<()>() => Some(TaggedValue::None),
 			x if x == TypeId::of::<String>() => Some(TaggedValue::String(*downcast(input).unwrap())),
 			x if x == TypeId::of::<u32>() => Some(TaggedValue::U32(*downcast(input).unwrap())),

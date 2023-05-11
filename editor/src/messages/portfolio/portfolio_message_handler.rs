@@ -683,4 +683,10 @@ impl PortfolioMessageHandler {
 			}
 		}
 	}
+
+	pub fn poll_node_graph_evaluation(&mut self, responses: &mut VecDeque<Message>) {
+		self.executor.poll_node_graph_evaluation(responses).unwrap_or_else(|e| {
+			log::error!("Error while evaluating node graph: {}", e);
+		});
+	}
 }

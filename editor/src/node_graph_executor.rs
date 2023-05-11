@@ -38,6 +38,7 @@ enum NodeRuntimeMessage {
 pub(crate) struct GenerationRequest {
 	generation_id: u64,
 	graph: NodeNetwork,
+	path: Vec<LayerId>,
 	image_frame: Option<ImageFrame<Color>>,
 }
 pub(crate) struct GenerationResponse {
@@ -59,12 +60,20 @@ impl NodeRuntime {
 			font_cache: FontCache::default(),
 		}
 	}
-	pub async fn run(&mut self) {
-		let requests = self.receiver.try_iter().collect::<Vec<_>>();
+	pub fn run(&mut self) {
+		let mut requests = self.receiver.try_iter().collect::<Vec<_>>();
+		requests.reverse();
+		requests.dedup_by_key(|x| match x {
+			NodeRuntimeMessage::FontCacheUpdate(_) => None,
+			NodeRuntimeMessage::GenerationRequest(x) => Some(x.path.clone()),
+		});
+
 		for request in requests {
 			match request {
 				NodeRuntimeMessage::FontCacheUpdate(font_cache) => self.font_cache = font_cache,
-				NodeRuntimeMessage::GenerationRequest(GenerationRequest { generation_id, graph, image_frame }) => {
+				NodeRuntimeMessage::GenerationRequest(GenerationRequest {
+					generation_id, graph, image_frame, ..
+				}) => {
 					let result = self.execute_network(graph, image_frame);
 					let response = GenerationResponse { generation_id, result };
 					self.sender.send(response);
@@ -113,6 +122,15 @@ impl NodeRuntime {
 	}
 }
 
+pub fn run_node_graph() {
+	NODE_RUNTIME.with(|runtime| {
+		let mut runtime = runtime.borrow_mut();
+		if let Some(runtime) = runtime.as_mut() {
+			runtime.run();
+		}
+	});
+}
+
 #[derive(Debug)]
 pub struct NodeGraphExecutor {
 	pub(crate) executor: DynamicExecutor,
@@ -150,9 +168,10 @@ impl Default for NodeGraphExecutor {
 
 impl NodeGraphExecutor {
 	/// Execute the network by flattening it and creating a borrow stack.
-	fn queue_execution(&self, network: NodeNetwork, image_frame: Option<ImageFrame<Color>>) -> u64 {
+	fn queue_execution(&self, network: NodeNetwork, image_frame: Option<ImageFrame<Color>>, layer_path: Vec<LayerId>) -> u64 {
 		let generation_id = generate_uuid();
 		let request = GenerationRequest {
+			path: layer_path.clone(),
 			graph: network,
 			image_frame,
 			generation_id,
@@ -386,7 +405,7 @@ impl NodeGraphExecutor {
 			return Ok(());
 		}*/
 		// Execute the node graph
-		let generation_id = self.queue_execution(network, Some(image_frame));
+		let generation_id = self.queue_execution(network, Some(image_frame), layer_path.clone());
 
 		self.futures.insert(generation_id, ExecutionContext { layer_path, document_id });
 		//self.process_node_graph_output(boxed_node_graph_output, layer_path, responses, document_id)?;
