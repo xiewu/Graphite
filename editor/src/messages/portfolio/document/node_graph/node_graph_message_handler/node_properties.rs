@@ -932,6 +932,7 @@ pub fn node_section_font(document_node: &DocumentNode, node_id: NodeId, _context
 }
 
 pub fn imaginate_properties(document_node: &DocumentNode, node_id: NodeId, context: &mut NodePropertiesContext) -> Vec<LayoutGroup> {
+	/*
 	let imaginate_node = [context.nested_path, &[node_id]].concat();
 	let layer_path = context.layer_path.to_vec();
 
@@ -1488,6 +1489,8 @@ pub fn imaginate_properties(document_node: &DocumentNode, node_id: NodeId, conte
 	layout.extend_from_slice(&[improve_faces, tiling]);
 
 	layout
+		*/
+	todo!()
 }
 
 fn unknown_node_properties(document_node: &DocumentNode) -> Vec<LayoutGroup> {

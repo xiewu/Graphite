@@ -22,7 +22,7 @@ use graph_craft::document::{NodeId, NodeInput};
 use graphene_core::raster::Image;
 use graphene_core::text::Font;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct PortfolioMessageHandler {
 	menu_bar_message_handler: MenuBarMessageHandler,
 	documents: HashMap<u64, DocumentMessageHandler>,
@@ -215,6 +215,7 @@ impl MessageHandler<PortfolioMessage, (&InputPreprocessorMessageHandler, &Prefer
 				}
 
 				self.persistent_data.font_cache.insert(font, preview_url, data, is_default);
+				self.executor.update_font_cache(self.persistent_data.font_cache.clone());
 			}
 			PortfolioMessage::ImaginateCheckServerStatus => {
 				self.persistent_data.imaginate_server_status = ImaginateServerStatus::Checking;
@@ -454,7 +455,7 @@ impl MessageHandler<PortfolioMessage, (&InputPreprocessorMessageHandler, &Prefer
 				size,
 				imaginate_node_path,
 			} => {
-				let result = self.executor.evaluate_node_graph(
+				let result = self.executor.submit_node_graph_evaluation(
 					(document_id, &mut self.documents),
 					layer_path,
 					(input_image_data, size),
