@@ -14,6 +14,7 @@
 	"scripts": {
 		"start": "npm run build-wasm && concurrently -k \"parcel serve index.html --port 8080\" \"npm run watch:wasm\" || (npm run print-building-help && exit 1)",
 		"build": "npm run build-wasm-prod && npm run build-licenses && parcel build index.html || (npm run print-building-help && exit 1)",
+		"build:dev": "npm run build-wasm-prod && parcel build index.html && cd dist && python ../server.py || (npm run print-building-help && exit 1)",
 		"build-licenses": "webpack build",
 		"tauri:dev": "echo 'Make sure you build the wasm binary for tauri using `npm run tauri:build-wasm`' && parcel serve index.html --port 8080",
 		"build-wasm": "wasm-pack build ./wasm --dev --target=web",

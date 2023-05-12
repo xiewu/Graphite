@@ -1,4 +1,5 @@
 import wasm_bindgen from '../../wasm/pkg/graphite_wasm.js'
+import "reflect-metadata";
 
 const { child_entry_point } = wasm_bindgen;
 
@@ -14,7 +15,7 @@ self.onmessage = async event => {
 	// or a module object); the second is the memory block to use, and if you
 	// don't provide one (like we didn't in "index.js") then a new one will be
 	// allocated for you.
-	log('worker.js: onmessage', event.data);
+	console.log('worker.js: onmessage', event.data);
 	debugger;
 	const url = new URL('../../wasm/pkg/graphite_wasm_bg.wasm', import.meta.url);
 	let init = await wasm_bindgen(url, event.data[1]).catch(err => {
