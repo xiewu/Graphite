@@ -45,6 +45,7 @@ export function spawnWorker(): Worker {
 	console.log(url);
 	const worker = new Worker(
 		url,
+		{ type: "module" }
 	);
 
 	//const msg = [wasmModule, wasmImport, ptr];

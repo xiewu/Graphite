@@ -1,7 +1,6 @@
 import wasm_bindgen from '../../wasm/pkg/graphite_wasm.js'
 
 const { child_entry_point } = wasm_bindgen;
-console.log("initing worker");
 
 self.onmessage = async event => {
 	// We expect a message with three elements [module, memory, ptr], where:
