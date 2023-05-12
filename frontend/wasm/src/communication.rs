@@ -9,7 +9,10 @@ extern "C" {
 	pub static PERFORMANCE: web_sys::Performance;
 }
 
-#[wasm_bindgen(module = "/../src/wasm-communication/editor.ts")]
+//#[wasm_bindgen(module = "/../src/wasm-communication/editor.ts")]
+//#[wasm_bindgen]
+#[cfg_attr(feature = "no-modules", wasm_bindgen)]
+#[cfg_attr(not(feature = "no-modules"), wasm_bindgen(module = "/../src/wasm-communication/editor.ts"))]
 extern "C" {
 	fn spawnWorker() -> web_sys::Worker;
 }
@@ -55,7 +58,7 @@ pub fn spawn(f: impl FnOnce() + Send + 'static) -> Result<web_sys::Worker, JsVal
 	// Double-boxing because `dyn FnOnce` is unsized and so `Box<dyn FnOnce()>` has
 	// an undefined layout (although I think in practice its a pointer and a length?).
 	let ptr = Box::into_raw(Box::new(Box::new(f) as Box<dyn FnOnce()>));
-	let w = spawnWorker();
+	let w = unsafe { spawnWorker() };
 
 	// See `worker.js` for the format of this message.
 	let msg: js_sys::Array = [&wasm_bindgen::module(), &wasm_bindgen::memory().as_ref(), &JsValue::from(ptr as u32)].into_iter().collect();

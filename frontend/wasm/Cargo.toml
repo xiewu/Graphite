@@ -14,6 +14,7 @@ license = "Apache-2.0"
 tauri = ["ron"]
 gpu = ["editor/gpu"]
 default = []
+no-modules = []
 
 [lib]
 crate-type = ["cdylib", "rlib"]

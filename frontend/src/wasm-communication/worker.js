@@ -1,7 +1,9 @@
-import wasm_bindgen from '../../wasm/pkg/graphite_wasm.js'
-import "reflect-metadata";
+"use strict";
+//import "reflect-metadata";
+//import wasm_bindgen from '../../wasm/pkg/graphite_wasm.js'
+//importScripts('./pkg/graphite_wasm.js')
 
-const { child_entry_point } = wasm_bindgen;
+//const { child_entry_point } = wasm_bindgen;
 
 self.onmessage = async event => {
 	// We expect a message with three elements [module, memory, ptr], where:
@@ -15,18 +17,26 @@ self.onmessage = async event => {
 	// or a module object); the second is the memory block to use, and if you
 	// don't provide one (like we didn't in "index.js") then a new one will be
 	// allocated for you.
-	console.log('worker.js: onmessage', event.data);
+
 	debugger;
-	const url = new URL('../../wasm/pkg/graphite_wasm_bg.wasm', import.meta.url);
-	let init = await wasm_bindgen(url, event.data[1]).catch(err => {
+	/*
+	const bindgen_url = new URL('../../wasm/pkg/graphite_wasm.js', import.meta.url);
+	let wasm_bindgen = importScripts(bindgen_url);
+	console.log('worker.js: onmessage', event.data);
+*/
+	let wasm_bindgen = await import('../../wasm/pkg/graphite_wasm.js').catch(err => { });;
+	//	const url = new URL('./pkg/graphite_wasm_bg.wasm', import.meta.url);
+	let init = await wasm_bindgen('/pkg/graphite_wasm_bg.wasm', event.data[1]).catch(err => {
 		// Propagate to main `onerror`:
 		setTimeout(() => {
 			throw err;
 		});
 		// Rethrow to keep promise rejected and prevent execution of further commands:
 		throw err;
+		// "tauri:build-wasm": "wasm-pack build ./wasm --release --target=web -- --features tauri",
 	});
 
+	/*
 	child_entry_point(event.data[2]);
 
 	// Clean up thread resources. Depending on what you're doing with the thread, this might
@@ -38,5 +48,6 @@ self.onmessage = async event => {
 	// Free memory (stack, thread-locals) held (in the wasm linear memory) by the thread.
 	init.__wbindgen_thread_destroy();
 	// Tell the browser to stop the thread.
+	*/
 	close();
 };

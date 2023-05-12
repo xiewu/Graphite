@@ -31,7 +31,8 @@ pub fn set_random_seed(seed: u64) {
 
 /// We directly interface with the updateImage JS function for massively increased performance over serializing and deserializing.
 /// This avoids creating a json with a list millions of numbers long.
-#[wasm_bindgen(module = "/../src/wasm-communication/editor.ts")]
+#[cfg_attr(feature = "no-modules", wasm_bindgen)]
+#[cfg_attr(not(feature = "no-modules"), wasm_bindgen(module = "/../src/wasm-communication/editor.ts"))]
 extern "C" {
 	fn updateImage(path: Vec<u64>, mime: String, imageData: &[u8], transform: js_sys::Float64Array, document_id: u64);
 	fn fetchImage(path: Vec<u64>, mime: String, document_id: u64, identifier: String);
@@ -167,7 +168,7 @@ impl JsEditorHandle {
 					} else {
 						js_sys::Float64Array::default()
 					};
-					updateImage(image.path, image.mime, &image.image_data, transform, document_id);
+					unsafe { updateImage(image.path, image.mime, &image.image_data, transform, document_id) };
 				}
 				#[cfg(feature = "tauri")]
 				fetchImage(image.path.clone(), image.mime, document_id, format!("http://localhost:3001/image/{:?}_{}", &image.path, document_id));
