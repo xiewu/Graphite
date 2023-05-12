@@ -4,6 +4,7 @@
 #[macro_use]
 extern crate log;
 
+pub mod communication;
 pub mod editor_api;
 pub mod helpers;
 
@@ -32,4 +33,6 @@ pub fn init_graphite() {
 	// Set up the logger with a default level of debug
 	log::set_logger(&LOGGER).expect("Failed to set logger");
 	log::set_max_level(log::LevelFilter::Debug);
+
+	communication::spawn_workers();
 }

@@ -11,6 +11,8 @@ export type Editor = Readonly<ReturnType<typeof createEditor>>;
 // `wasmImport` starts uninitialized because its initialization needs to occur asynchronously, and thus needs to occur by manually calling and awaiting `initWasm()`
 let wasmImport: WebAssembly.Memory | undefined;
 
+let wasmModule: any;
+
 export async function updateImage(path: BigUint64Array, mime: string, imageData: Uint8Array, transform: Float64Array, documentId: bigint): Promise<void> {
 	const blob = new Blob([imageData], { type: mime });
 
@@ -38,6 +40,20 @@ export async function fetchImage(path: BigUint64Array, mime: string, documentId:
 	window["editorInstance"]?.setImageBlobURL(documentId, path, blobURL, image.naturalWidth, image.naturalHeight, undefined);
 }
 
+export function spawnWorker(): Worker {
+	let url = new URL('/src/wasm-communication/worker.js', import.meta.url);
+	console.log(url);
+	const worker = new Worker(
+		url,
+	);
+
+	//const msg = [wasmModule, wasmImport, ptr];
+	//console.log(msg);
+	//worker.postMessage(msg);
+	console.log("posted message");
+	return worker
+}
+
 const tauri = "__TAURI_METADATA__" in window && import("@tauri-apps/api");
 export async function dispatchTauri(message: unknown): Promise<void> {
 	if (!tauri) return;
@@ -55,6 +71,8 @@ export async function dispatchTauri(message: unknown): Promise<void> {
 export async function initWasm(): Promise<void> {
 	// Skip if the WASM module is already initialized
 	if (wasmImport !== undefined) return;
+
+	wasmModule = await fetch(new URL("/wasm/pkg/graphite_wasm_bg.wasm", import.meta.url));
 
 	// Import the WASM module JS bindings and wrap them in the panic proxy
 	// eslint-disable-next-line import/no-cycle
