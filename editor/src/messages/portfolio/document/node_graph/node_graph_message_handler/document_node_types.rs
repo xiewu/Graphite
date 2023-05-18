@@ -69,6 +69,7 @@ pub struct NodePropertiesContext<'a> {
 pub enum NodeImplementation {
 	ProtoNode(NodeIdentifier),
 	DocumentNode(NodeNetwork),
+	Extract,
 }
 
 impl NodeImplementation {
@@ -721,14 +722,27 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 			inputs: vec![
 				DocumentInputType::value("Image", TaggedValue::ImageFrame(ImageFrame::empty()), true),
 				DocumentInputType {
-					name: "Path",
-					data_type: FrontendGraphDataType::Text,
-					default: NodeInput::value(TaggedValue::String(String::new()), false),
+					name: "Node",
+					data_type: FrontendGraphDataType::General,
+					default: NodeInput::value(TaggedValue::DocumentNode(DocumentNode::default()), true),
 				},
 			],
 			outputs: vec![DocumentOutputType::new("Image", FrontendGraphDataType::Raster)],
-			properties: node_properties::gpu_map_properties,
+			properties: node_properties::no_properties,
 		},
+		DocumentNodeType {
+			name: "Extract",
+			category: "Macros",
+			identifier: NodeImplementation::Extract,
+			inputs: vec![DocumentInputType {
+				name: "Node",
+				data_type: FrontendGraphDataType::General,
+				default: NodeInput::value(TaggedValue::DocumentNode(DocumentNode::default()), true),
+			}],
+			outputs: vec![DocumentOutputType::new("DocumentNode", FrontendGraphDataType::General)],
+			properties: node_properties::no_properties,
+		},
+		#[cfg(feature = "quantization")]
 		#[cfg(feature = "quantization")]
 		DocumentNodeType {
 			name: "Generate Quantization",
@@ -1159,6 +1173,7 @@ impl DocumentNodeType {
 		let num_inputs = self.inputs.len();
 
 		let inner_network = match &self.identifier {
+			NodeImplementation::DocumentNode(network) => network.clone(),
 			NodeImplementation::ProtoNode(ident) => {
 				NodeNetwork {
 					inputs: (0..num_inputs).map(|_| 0).collect(),
@@ -1178,7 +1193,22 @@ impl DocumentNodeType {
 					..Default::default()
 				}
 			}
-			NodeImplementation::DocumentNode(network) => network.clone(),
+			NodeImplementation::Extract => NodeNetwork {
+				inputs: (0..num_inputs).map(|_| 0).collect(),
+				outputs: vec![NodeOutput::new(0, 0)],
+				nodes: [(
+					0,
+					DocumentNode {
+						name: "ExtractNode".to_string(),
+						implementation: DocumentNodeImplementation::Extract,
+						inputs: self.inputs.iter().map(|i| NodeInput::Network(i.default.ty())).collect(),
+						..Default::default()
+					},
+				)]
+				.into_iter()
+				.collect(),
+				..Default::default()
+			},
 		};
 
 		DocumentNodeImplementation::Network(inner_network)
