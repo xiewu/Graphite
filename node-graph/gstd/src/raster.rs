@@ -97,8 +97,8 @@ where
 
 #[derive(Debug, Clone, DynAny)]
 pub struct AxisAlignedBbox {
-	start: DVec2,
-	end: DVec2,
+	pub(crate) start: DVec2,
+	pub(crate) end: DVec2,
 }
 
 impl AxisAlignedBbox {
@@ -138,15 +138,15 @@ impl AxisAlignedBbox {
 }
 
 #[derive(Debug, Clone)]
-struct Bbox {
-	top_left: DVec2,
-	top_right: DVec2,
-	bottom_left: DVec2,
-	bottom_right: DVec2,
+pub(crate) struct Bbox {
+	pub(crate) top_left: DVec2,
+	pub(crate) top_right: DVec2,
+	pub(crate) bottom_left: DVec2,
+	pub(crate) bottom_right: DVec2,
 }
 
 impl Bbox {
-	fn axis_aligned_bbox(&self) -> AxisAlignedBbox {
+	pub(crate) fn axis_aligned_bbox(&self) -> AxisAlignedBbox {
 		let start_x = self.top_left.x.min(self.top_right.x).min(self.bottom_left.x).min(self.bottom_right.x);
 		let start_y = self.top_left.y.min(self.top_right.y).min(self.bottom_left.y).min(self.bottom_right.y);
 		let end_x = self.top_left.x.max(self.top_right.x).max(self.bottom_left.x).max(self.bottom_right.x);
@@ -159,7 +159,7 @@ impl Bbox {
 	}
 }
 
-fn compute_transformed_bounding_box(transform: DAffine2) -> Bbox {
+pub(crate) fn compute_transformed_bounding_box(transform: DAffine2) -> Bbox {
 	let top_left = DVec2::new(0., 1.);
 	let top_right = DVec2::new(1., 1.);
 	let bottom_left = DVec2::new(0., 0.);

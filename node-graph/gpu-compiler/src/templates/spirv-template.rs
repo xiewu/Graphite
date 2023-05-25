@@ -19,6 +19,8 @@ extern crate spirv_std;
 		{% endfor %}
 	) {
 		use graphene_core::Node;
+		use graphene_core::raster::adjustments::{BlendMode, BlendNode};
+		use graphene_core::Color;
 
 		/*
 		{% for input in input_nodes %}

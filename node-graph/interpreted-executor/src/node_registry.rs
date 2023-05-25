@@ -217,6 +217,30 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 		register_node!(graphene_std::memo::MonitorNode<_>, input: graphene_core::GraphicGroup, params: []),
 		#[cfg(feature = "gpu")]
 		vec![(
+			NodeIdentifier::new("graphene_std::executor::BlendGpuImageNode<_, _, _>"),
+			|args| {
+				Box::pin(async move {
+					let background: DowncastBothNode<(), ImageFrame<Color>> = DowncastBothNode::new(args[0]);
+					let background = ClonedNode::new(background.eval(()).await);
+					let blend_mode: DowncastBothNode<(), BlendMode> = DowncastBothNode::new(args[1]);
+					let blend_mode = ClonedNode::new(blend_mode.eval(()).await);
+					let opacity: DowncastBothNode<(), f32> = DowncastBothNode::new(args[2]);
+					let opacity = ClonedNode::new(opacity.eval(()).await);
+					let node = graphene_std::executor::BlendGpuImageNode::new(background, blend_mode, opacity);
+					let any: DynAnyNode<ImageFrame<Color>, _, _> = graphene_std::any::DynAnyNode::new(graphene_core::value::ValueNode::new(node));
+
+					Box::pin(any) as TypeErasedPinned
+				})
+			},
+			NodeIOTypes::new(
+				concrete!(ImageFrame<Color>),
+				concrete!(ImageFrame<Color>),
+				vec![value_fn!(ImageFrame<Color>), value_fn!(BlendMode), value_fn!(f32)],
+			),
+		)],
+		//#[cfg(feature = "gpu")]
+		//register_node!(graphene_std::executor::MapGpuSingleImageNode<_>, input: Image<Color>, params: [String]),
+		vec![(
 			NodeIdentifier::new("graphene_std::executor::MapGpuSingleImageNode<_>"),
 			|args| {
 				Box::pin(async move {
@@ -330,8 +354,6 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 		)],
 		// Filters
 		raster_node!(graphene_core::raster::LuminanceNode<_>, params: [LuminanceCalculation]),
-		raster_node!(graphene_core::raster::ExtractChannelNode<_>, params: [RedGreenBlue]),
-		raster_node!(graphene_core::raster::ExtractAlphaNode<>, params: []),
 		raster_node!(graphene_core::raster::LevelsNode<_, _, _, _, _>, params: [f64, f64, f64, f64, f64]),
 		register_node!(graphene_std::image_segmentation::ImageSegmentationNode<_>, input: ImageFrame<Color>, params: [ImageFrame<Color>]),
 		register_node!(graphene_core::raster::IndexNode<_>, input: Vec<ImageFrame<Color>>, params: [u32]),
@@ -467,30 +489,6 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 					})
 				},
 				NodeIOTypes::new(generic!(T), concrete!(graphene_core::EditorApi), vec![value_fn!(VectorData)]),
-			),
-			(
-				NodeIdentifier::new("graphene_std::memo::EndLetNode<_>"),
-				|args| {
-					Box::pin(async move {
-						let input: DowncastBothNode<(), graphene_core::GraphicGroup> = DowncastBothNode::new(args[0]);
-						let node = graphene_std::memo::EndLetNode::new(input);
-						let any: DynAnyInRefNode<graphene_core::EditorApi, _, _> = graphene_std::any::DynAnyInRefNode::new(node);
-						Box::pin(any) as TypeErasedPinned
-					})
-				},
-				NodeIOTypes::new(generic!(T), concrete!(graphene_core::EditorApi), vec![value_fn!(graphene_core::GraphicGroup)]),
-			),
-			(
-				NodeIdentifier::new("graphene_std::memo::EndLetNode<_>"),
-				|args| {
-					Box::pin(async move {
-						let input: DowncastBothNode<(), graphene_core::Artboard> = DowncastBothNode::new(args[0]);
-						let node = graphene_std::memo::EndLetNode::new(input);
-						let any: DynAnyInRefNode<graphene_core::EditorApi, _, _> = graphene_std::any::DynAnyInRefNode::new(node);
-						Box::pin(any) as TypeErasedPinned
-					})
-				},
-				NodeIOTypes::new(generic!(T), concrete!(graphene_core::EditorApi), vec![value_fn!(graphene_core::Artboard)]),
 			),
 			(
 				NodeIdentifier::new("graphene_std::memo::RefNode<_, _>"),

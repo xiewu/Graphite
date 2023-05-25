@@ -84,6 +84,7 @@ impl BlendMode {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", derive(specta::Type))]
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq, DynAny, Hash)]
+#[repr(i32)]
 pub enum BlendMode {
 	#[default]
 	// Basic group
@@ -410,7 +411,7 @@ pub struct BlendNode<BlendMode, Opacity> {
 }
 
 #[node_macro::node_fn(BlendNode)]
-fn blend_node(input: (Color, Color), blend_mode: BlendMode, opacity: f64) -> Color {
+fn blend_node(input: (Color, Color), blend_mode: BlendMode, opacity: f32) -> Color {
 	let opacity = opacity / 100.;
 
 	let (foreground, background) = input;
@@ -452,7 +453,7 @@ fn blend_node(input: (Color, Color), blend_mode: BlendMode, opacity: f64) -> Col
 		BlendMode::InsertBlue => foreground.with_blue(background.b()),
 	};
 
-	background.alpha_blend(target_color.to_associated_alpha(opacity as f32))
+	background.alpha_blend(target_color.to_associated_alpha(opacity))
 }
 
 #[derive(Debug, Clone, Copy)]

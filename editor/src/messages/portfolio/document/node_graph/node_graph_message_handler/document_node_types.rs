@@ -743,6 +743,20 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 			properties: node_properties::no_properties,
 		},
 		#[cfg(feature = "quantization")]
+		#[cfg(feature = "gpu")]
+		DocumentNodeType {
+			name: "BlendGpuImage",
+			category: "Image Adjustments",
+			identifier: NodeImplementation::proto("graphene_std::executor::BlendGpuImageNode<_, _, _>"),
+			inputs: vec![
+				DocumentInputType::value("Image", TaggedValue::ImageFrame(ImageFrame::empty()), true),
+				DocumentInputType::value("Second", TaggedValue::ImageFrame(ImageFrame::empty()), true),
+				DocumentInputType::value("Blend Mode", TaggedValue::BlendMode(BlendMode::Normal), false),
+				DocumentInputType::value("Opacity", TaggedValue::F32(100.0), false),
+			],
+			outputs: vec![DocumentOutputType::new("Image", FrontendGraphDataType::Raster)],
+			properties: node_properties::blend_properties,
+		},
 		#[cfg(feature = "quantization")]
 		DocumentNodeType {
 			name: "Generate Quantization",
