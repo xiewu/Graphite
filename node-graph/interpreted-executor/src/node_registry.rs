@@ -254,6 +254,19 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 			NodeIOTypes::new(concrete!(ImageFrame<Color>), concrete!(ImageFrame<Color>), vec![value_fn!(DocumentNode)]),
 		)],
 		vec![(
+			NodeIdentifier::new("graphene_std::executor::MapGpuSingleImageNode<_>"),
+			|args| {
+				Box::pin(async move {
+					let document_node: DowncastBothNode<(), DocumentNode> = DowncastBothNode::new(args[0]);
+					let document_node = ClonedNode::new(document_node.eval(()).await);
+					let node = graphene_std::executor::MapGpuNode::new(document_node);
+					let any: DynAnyNode<ImageFrame<Color>, _, _> = graphene_std::any::DynAnyNode::new(graphene_core::value::ValueNode::new(node));
+					Box::pin(any) as TypeErasedPinned
+				})
+			},
+			NodeIOTypes::new(concrete!(ImageFrame<Color>), concrete!(ImageFrame<Color>), vec![value_fn!(DocumentNode)]),
+		)],
+		vec![(
 			NodeIdentifier::new("graphene_core::structural::ComposeNode<_, _, _>"),
 			|args| {
 				Box::pin(async move {
