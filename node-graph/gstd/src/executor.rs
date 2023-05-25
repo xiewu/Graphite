@@ -304,7 +304,7 @@ async fn blend_gpu_image(foreground: ImageFrame<Color>, background: ImageFrame<C
 							graphene_core::value::CopiedNode::new({}),
 						).eval((
 							i1[_global_index.x as usize],
-							if _global_index.x < i3[2] {{
+							if _global_index.x < i2[2] {{
 								i0[_global_index.x as usize]
 							}} else {{
 								Color::from_rgbaf32_unchecked(0.0, 0.0, 0.0, 0.0)
@@ -336,7 +336,7 @@ async fn blend_gpu_image(foreground: ImageFrame<Color>, background: ImageFrame<C
 				ShaderInput::StorageBuffer((), concrete!(Color)), // background image
 				ShaderInput::StorageBuffer((), concrete!(Color)), // foreground image
 				ShaderInput::StorageBuffer((), concrete!(u32)),   // width/height of the background image
-				ShaderInput::StorageBuffer((), concrete!(u32)),   // width/height/length of the foreground image
+				//ShaderInput::StorageBuffer((), concrete!(u32)),   // width/height/length of the foreground image
 				ShaderInput::OutputBuffer((), concrete!(Color)),
 			],
 			output: ShaderInput::OutputBuffer((), concrete!(Color)),
@@ -347,7 +347,9 @@ async fn blend_gpu_image(foreground: ImageFrame<Color>, background: ImageFrame<C
 	let len = background.image.data.len();
 	log::debug!("instances: {}", len);
 
-	let executor = NewExecutor::new().await.unwrap();
+	let executor = NewExecutor::new()
+		.await
+		.expect("Failed to create wgpu executor. Please make sure that webgpu is enabled for your browser.");
 	log::debug!("creating buffer");
 	let bg_storage_buffer = executor
 		.create_storage_buffer(
@@ -403,7 +405,7 @@ async fn blend_gpu_image(foreground: ImageFrame<Color>, background: ImageFrame<C
 	let readback_buffer = Arc::new(readback_buffer);
 	log::debug!("created buffer");
 	let bind_group = Bindgroup {
-		buffers: vec![bg_storage_buffer.clone(), fg_storage_buffer.clone(), bg_dimensions_uniform.clone(), fg_dimensions_uniform.clone()],
+		buffers: vec![bg_storage_buffer.clone(), fg_storage_buffer.clone(), fg_dimensions_uniform.clone()], //bg_dimensions_uniform.clone()], //, fg_dimensions_uniform.clone()],
 	};
 
 	let shader = gpu_executor::Shader {

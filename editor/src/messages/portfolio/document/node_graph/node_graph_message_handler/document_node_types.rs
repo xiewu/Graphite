@@ -742,7 +742,6 @@ fn static_nodes() -> Vec<DocumentNodeType> {
 			outputs: vec![DocumentOutputType::new("DocumentNode", FrontendGraphDataType::General)],
 			properties: node_properties::no_properties,
 		},
-		#[cfg(feature = "quantization")]
 		#[cfg(feature = "gpu")]
 		DocumentNodeType {
 			name: "BlendGpuImage",
