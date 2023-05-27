@@ -17,7 +17,7 @@ where
 	S0: for<'any_input> Node<'any_input, (), Output = &'any_input N>,
 {
 	type Output = FutureAny<'input>;
-	#[inline]
+	#[inline(always)]
 	fn eval(&'input self, input: Any<'input>) -> Self::Output {
 		let node = self.node.eval(());
 		let node_name = core::any::type_name::<N>();
@@ -29,9 +29,8 @@ where
 		Box::pin(output)
 	}
 
-	fn reset(self: std::pin::Pin<&mut Self>) {
-		let wrapped_node = unsafe { self.map_unchecked_mut(|e| &mut e.node) };
-		Node::reset(wrapped_node);
+	unsafe fn reset(&self) {
+		self.node.reset();
 	}
 
 	fn serialize(&self) -> Option<std::sync::Arc<dyn core::any::Any>> {
@@ -60,6 +59,7 @@ where
 	N: for<'any_input> Node<'any_input, _I, Output = &'any_input _O>,
 {
 	type Output = FutureAny<'input>;
+	#[inline(always)]
 	fn eval(&'input self, input: Any<'input>) -> Self::Output {
 		let node_name = core::any::type_name::<N>();
 		let input: Box<_I> = dyn_any::downcast(input).unwrap_or_else(|e| panic!("DynAnyRefNode Input, {e} in:\n{node_name}"));
@@ -67,9 +67,8 @@ where
 		let output = async move { Box::new(result) as Any<'input> };
 		Box::pin(output)
 	}
-	fn reset(self: std::pin::Pin<&mut Self>) {
-		let wrapped_node = unsafe { self.map_unchecked_mut(|e| &mut e.node) };
-		Node::reset(wrapped_node);
+	unsafe fn reset(&self) {
+		self.node.reset();
 	}
 }
 
@@ -87,6 +86,7 @@ where
 	N: for<'any_input> Node<'any_input, &'any_input _I, Output = DynFuture<'any_input, _O>>,
 {
 	type Output = FutureAny<'input>;
+	#[inline(always)]
 	fn eval(&'input self, input: Any<'input>) -> Self::Output {
 		{
 			let node_name = core::any::type_name::<N>();
@@ -114,9 +114,8 @@ where
 	fn eval(&'i self, input: T) -> Self::Output {
 		Box::pin(async move { self.node.eval(input) })
 	}
-	fn reset(self: std::pin::Pin<&mut Self>) {
-		let wrapped_node = unsafe { self.map_unchecked_mut(|e| &mut e.node) };
-		Node::reset(wrapped_node);
+	unsafe fn reset(&self) {
+		self.node.reset();
 	}
 }
 
@@ -126,15 +125,15 @@ impl<'i, N> FutureWrapperNode<N> {
 	}
 }
 
-pub trait IntoTypeErasedNode<'n> {
-	fn into_type_erased(self) -> TypeErasedPinned<'n>;
+pub trait IntoTypeErasedNode<'n: 'i, 'i> {
+	fn into_type_erased(self) -> TypeErasedPinned<'n, 'i>;
 }
 
-impl<'n, N: 'n> IntoTypeErasedNode<'n> for N
+impl<'n: 'i, 'i, N: 'n> IntoTypeErasedNode<'n, 'i> for N
 where
-	N: for<'i> NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n,
+	N: NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n,
 {
-	fn into_type_erased(self) -> TypeErasedPinned<'n> {
+	fn into_type_erased(self) -> TypeErasedPinned<'n, 'i> {
 		Box::pin(self)
 	}
 }
@@ -163,14 +162,14 @@ where
 /// Boxes the input and downcasts the output.
 /// Wraps around a node taking Box<dyn DynAny> and returning Box<dyn DynAny>
 #[derive(Clone, Copy)]
-pub struct DowncastBothNode<'a, I, O> {
-	node: TypeErasedPinnedRef<'a>,
+pub struct DowncastBothNode<'a: 'i, 'i, I, O> {
+	node: TypeErasedPinnedRef<'a, 'i>,
 	_i: PhantomData<I>,
 	_o: PhantomData<O>,
 }
-impl<'n: 'input, 'input, O: 'input + StaticType, I: 'input + StaticType> Node<'input, I> for DowncastBothNode<'n, I, O> {
+impl<'n: 'input, 'input, O: 'input + StaticType, I: 'input + StaticType> Node<'input, I> for DowncastBothNode<'n, 'input, I, O> {
 	type Output = DynFuture<'input, O>;
-	#[inline]
+	#[inline(always)]
 	fn eval(&'input self, input: I) -> Self::Output {
 		{
 			let node_name = self.node.node_name();
@@ -183,8 +182,8 @@ impl<'n: 'input, 'input, O: 'input + StaticType, I: 'input + StaticType> Node<'i
 		}
 	}
 }
-impl<'n, I, O> DowncastBothNode<'n, I, O> {
-	pub const fn new(node: TypeErasedPinnedRef<'n>) -> Self {
+impl<'n: 'i, 'i, I, O> DowncastBothNode<'n, 'i, I, O> {
+	pub const fn new(node: TypeErasedPinnedRef<'n, 'i>) -> Self {
 		Self {
 			node,
 			_i: core::marker::PhantomData,
@@ -195,11 +194,11 @@ impl<'n, I, O> DowncastBothNode<'n, I, O> {
 /// Boxes the input and downcasts the output.
 /// Wraps around a node taking Box<dyn DynAny> and returning Box<dyn DynAny>
 #[derive(Clone, Copy)]
-pub struct DowncastBothRefNode<'a, I, O> {
-	node: TypeErasedPinnedRef<'a>,
+pub struct DowncastBothRefNode<'a: 'i, 'i, I, O> {
+	node: TypeErasedPinnedRef<'a, 'i>,
 	_i: PhantomData<(I, O)>,
 }
-impl<'n: 'input, 'input, O: 'input + StaticType, I: 'input + StaticType> Node<'input, I> for DowncastBothRefNode<'n, I, O> {
+impl<'n: 'input, 'input, O: 'input + StaticType, I: 'input + StaticType> Node<'input, I> for DowncastBothRefNode<'n, 'input, I, O> {
 	type Output = DynFuture<'input, &'input O>;
 	#[inline]
 	fn eval(&'input self, input: I) -> Self::Output {
@@ -212,18 +211,18 @@ impl<'n: 'input, 'input, O: 'input + StaticType, I: 'input + StaticType> Node<'i
 		}
 	}
 }
-impl<'n, I, O> DowncastBothRefNode<'n, I, O> {
-	pub const fn new(node: TypeErasedPinnedRef<'n>) -> Self {
+impl<'n: 'i, 'i, I, O> DowncastBothRefNode<'n, 'i, I, O> {
+	pub const fn new(node: TypeErasedPinnedRef<'n, 'i>) -> Self {
 		Self { node, _i: core::marker::PhantomData }
 	}
 }
 
-pub struct ComposeTypeErased<'a> {
-	first: TypeErasedPinnedRef<'a>,
-	second: TypeErasedPinnedRef<'a>,
+pub struct ComposeTypeErased<'a: 'b + 'i, 'b: 'i, 'i> {
+	first: TypeErasedPinnedRef<'a, 'i>,
+	second: TypeErasedPinnedRef<'b, 'i>,
 }
 
-impl<'i, 'a: 'i> Node<'i, Any<'i>> for ComposeTypeErased<'a> {
+impl<'i, 'a: 'i + 'b, 'b: 'i> Node<'i, Any<'i>> for ComposeTypeErased<'a, 'b, 'i> {
 	type Output = DynFuture<'i, Any<'i>>;
 	fn eval(&'i self, input: Any<'i>) -> Self::Output {
 		Box::pin(async move {
@@ -233,13 +232,13 @@ impl<'i, 'a: 'i> Node<'i, Any<'i>> for ComposeTypeErased<'a> {
 	}
 }
 
-impl<'a> ComposeTypeErased<'a> {
-	pub const fn new(first: TypeErasedPinnedRef<'a>, second: TypeErasedPinnedRef<'a>) -> Self {
+impl<'a: 'b + 'i, 'b: 'i, 'i> ComposeTypeErased<'a, 'b, 'i> {
+	pub const fn new(first: TypeErasedPinnedRef<'a, 'i>, second: TypeErasedPinnedRef<'b, 'i>) -> Self {
 		ComposeTypeErased { first, second }
 	}
 }
 
-pub fn input_node<O: StaticType>(n: TypeErasedPinnedRef) -> DowncastBothNode<(), O> {
+pub fn input_node<'n: 'i, 'i, O: StaticType>(n: TypeErasedPinnedRef<'n, 'i>) -> DowncastBothNode<'n, 'i, (), O> {
 	DowncastBothNode::new(n)
 }
 

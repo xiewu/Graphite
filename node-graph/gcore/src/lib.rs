@@ -42,7 +42,10 @@ pub use raster::Color;
 pub trait Node<'i, Input: 'i>: 'i {
 	type Output: 'i;
 	fn eval(&'i self, input: Input) -> Self::Output;
-	fn reset(self: Pin<&mut Self>) {}
+	/// Reset the node to its initial state.
+	/// # Safety
+	/// This function may only be called if no other reference to the data stored by the node exists.
+	unsafe fn reset(&self) {}
 	#[cfg(feature = "std")]
 	fn serialize(&self) -> Option<std::sync::Arc<dyn core::any::Any>> {
 		log::warn!("Node::serialize not implemented for {}", core::any::type_name::<Self>());

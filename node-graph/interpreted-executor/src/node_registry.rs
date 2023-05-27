@@ -1,6 +1,5 @@
 use glam::{DAffine2, DVec2};
 
-
 use graphene_core::ops::IdNode;
 use graphene_core::vector::VectorData;
 use once_cell::sync::Lazy;
@@ -16,9 +15,8 @@ use graphene_std::raster::*;
 
 use graphene_std::any::{ComposeTypeErased, DowncastBothNode, DynAnyInRefNode, DynAnyNode, FutureWrapperNode, IntoTypeErasedNode, TypeErasedPinnedRef};
 
+use graph_craft::proto::{Any, AnyNodeConstructor, DynFuture, FutureAny, NodeConstructor, TypeErasedPinned};
 use graphene_core::{Cow, NodeIdentifier, Type, TypeDescriptor};
-
-use graph_craft::proto::{NodeConstructor, TypeErasedPinned};
 
 use graphene_core::{concrete, generic, value_fn};
 use graphene_std::memo::{CacheNode, LetNode};
@@ -30,7 +28,7 @@ use graphene_core::quantization::QuantizationChannels;
 
 macro_rules! construct_node {
 	($args: ident, $path:ty, [$($type:tt),*]) => { async move {
-		let mut args: Vec<TypeErasedPinnedRef<'static>> = $args.clone();
+		let mut args: Vec<TypeErasedPinnedRef<'_, '_>> = $args.clone();
 		args.reverse();
 		let node = <$path>::new($(
 				{
@@ -81,7 +79,7 @@ macro_rules! raster_node {
 		// optimization purposes.
 		#[cfg_attr(debug_assertions, inline(never))]
 		#[cfg_attr(not(debug_assertions), inline)]
-		fn generate_triples() -> Vec<(NodeIdentifier, NodeConstructor, NodeIOTypes)> {
+		fn generate_triples<'n: 'i, 'i>() -> Vec<(NodeIdentifier, NodeConstructor<'n, 'i>, NodeIOTypes)> {
 			vec![
 			(
 				NodeIdentifier::new(stringify!($path)),
@@ -136,8 +134,20 @@ macro_rules! raster_node {
 	}};
 }
 
+fn constrain<F>(f: F) -> F
+where
+	F: for<'a> Fn(Vec<TypeErasedPinnedRef<'a, 'a>>) -> DynFuture<'a, TypeErasedPinned<'a, 'a>>,
+{
+	f
+}
+fn foo<'a>(args: Vec<TypeErasedPinnedRef<'a, 'a>>) -> TypeErasedPinned<'a, 'a> {
+	let node = ComposeTypeErased::new(args[0], args[1]);
+	let _ = &node as &dyn Node<'a, Any<'a>, Output = FutureAny<'a>>;
+	Box::pin(node) as TypeErasedPinned<'a, 'a>
+}
+
 //TODO: turn into hashmap
-fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstructor>> {
+fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, AnyNodeConstructor>> {
 	let node_types: Vec<Vec<(NodeIdentifier, NodeConstructor, NodeIOTypes)>> = vec![
 		//register_node!(graphene_core::ops::IdNode, input: Any<'_>, params: []),
 		vec![(
@@ -230,12 +240,7 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 		)],
 		vec![(
 			NodeIdentifier::new("graphene_core::structural::ComposeNode<_, _, _>"),
-			|args| {
-				Box::pin(async move {
-					let node = ComposeTypeErased::new(args[0], args[1]);
-					node.into_type_erased()
-				})
-			},
+			move |args| Box::pin(async move { foo(args) }),
 			NodeIOTypes::new(
 				generic!(T),
 				generic!(U),
@@ -426,7 +431,7 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 						let input: DowncastBothNode<(), ImageFrame<Color>> = DowncastBothNode::new(args[0]);
 						let node = graphene_std::memo::EndLetNode::new(input);
 						let any: DynAnyInRefNode<graphene_core::EditorApi, _, _> = graphene_std::any::DynAnyInRefNode::new(node);
-						Box::pin(any) as TypeErasedPinned<'_>
+						Box::pin(any) as TypeErasedPinned<'_, '_>
 					})
 				},
 				NodeIOTypes::new(generic!(T), concrete!(ImageFrame<Color>), vec![value_fn!(ImageFrame<Color>)]),
@@ -478,7 +483,11 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 						Box::pin(any) as TypeErasedPinned
 					})
 				},
-				NodeIOTypes::new(concrete!(()), concrete!(&graphene_core::EditorApi), vec![fn_type!(Option<graphene_core::EditorApi>, &graphene_core::EditorApi)]),
+				NodeIOTypes::new(
+					concrete!(()),
+					concrete!(&graphene_core::EditorApi),
+					vec![fn_type!(Option<graphene_core::EditorApi>, &graphene_core::EditorApi)],
+				),
 			),
 			/*
 			(
@@ -589,18 +598,6 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 				NodeIdentifier::new("graphene_std::memo::CacheNode"),
 				|args| {
 					Box::pin(async move {
-						let input: DowncastBothNode<ImageFrame<Color>, ImageFrame<Color>> = DowncastBothNode::new(args[0]);
-						let node: CacheNode<ImageFrame<Color>, _> = graphene_std::memo::CacheNode::new(input);
-						let any = DynAnyNode::new(ValueNode::new(node));
-						Box::pin(any) as TypeErasedPinned
-					})
-				},
-				NodeIOTypes::new(concrete!(ImageFrame<Color>), concrete!(ImageFrame<Color>), vec![fn_type!(ImageFrame<Color>, ImageFrame<Color>)]),
-			),
-			(
-				NodeIdentifier::new("graphene_std::memo::CacheNode"),
-				|args| {
-					Box::pin(async move {
 						let input: DowncastBothNode<(), QuantizationChannels> = DowncastBothNode::new(args[0]);
 						let node: CacheNode<QuantizationChannels, _> = graphene_std::memo::CacheNode::new(input);
 						let any = DynAnyNode::new(ValueNode::new(node));
@@ -664,7 +661,7 @@ fn node_registry() -> HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstruct
 	map
 }
 
-pub static NODE_REGISTRY: Lazy<HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstructor>>> = Lazy::new(|| node_registry());
+pub static NODE_REGISTRY: Lazy<HashMap<NodeIdentifier, HashMap<NodeIOTypes, AnyNodeConstructor>>> = Lazy::new(|| node_registry());
 
 #[cfg(test)]
 mod protograph_testing {

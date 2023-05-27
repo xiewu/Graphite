@@ -13,14 +13,14 @@ use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
 pub type DynFuture<'n, T> = Pin<Box<dyn core::future::Future<Output = T> + 'n>>;
-pub type LocalFuture<'n, T> = Pin<Box<dyn core::future::Future<Output = T> + 'n>>;
 pub type Any<'n> = Box<dyn DynAny<'n> + 'n>;
 pub type FutureAny<'n> = DynFuture<'n, Any<'n>>;
-pub type TypeErasedNode<'n> = dyn for<'i> NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n;
-pub type TypeErasedPinnedRef<'n> = Pin<&'n (dyn for<'i> NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n)>;
-pub type TypeErasedPinned<'n> = Pin<Box<dyn for<'i> NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n>>;
+pub type TypeErasedNode<'n, 'i> = dyn NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n;
+pub type TypeErasedPinnedRef<'n, 'i> = Pin<&'n TypeErasedNode<'n, 'i>>;
+pub type TypeErasedPinned<'n, 'i> = Pin<Box<TypeErasedNode<'n, 'i>>>;
 
-pub type NodeConstructor = for<'a> fn(Vec<TypeErasedPinnedRef<'static>>) -> DynFuture<'static, TypeErasedPinned<'static>>;
+pub type NodeConstructor<'n, 'i> = fn(Vec<TypeErasedPinnedRef<'n, 'i>>) -> DynFuture<'n, TypeErasedPinned<'n, 'i>>;
+pub type AnyNodeConstructor = for<'n, 'i> fn(Vec<TypeErasedPinnedRef<'n, 'i>>) -> DynFuture<'n, TypeErasedPinned<'n, 'i>>;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -389,16 +389,16 @@ impl ProtoNetwork {
 }
 
 /// The `TypingContext` is used to store the types of the nodes indexed by their stable node id.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct TypingContext {
-	lookup: Cow<'static, HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstructor>>>,
+#[derive(Default, Clone)]
+pub struct TypingContext<'n> {
+	lookup: Cow<'n, HashMap<NodeIdentifier, HashMap<NodeIOTypes, AnyNodeConstructor>>>,
 	inferred: HashMap<NodeId, NodeIOTypes>,
-	constructor: HashMap<NodeId, NodeConstructor>,
+	constructor: HashMap<NodeId, AnyNodeConstructor>,
 }
 
-impl TypingContext {
+impl<'n> TypingContext<'n> {
 	/// Creates a new `TypingContext` with the given lookup table.
-	pub fn new(lookup: &'static HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstructor>>) -> Self {
+	pub fn new(lookup: &'n HashMap<NodeIdentifier, HashMap<NodeIOTypes, AnyNodeConstructor>>) -> Self {
 		Self {
 			lookup: Cow::Borrowed(lookup),
 			..Default::default()
@@ -416,7 +416,7 @@ impl TypingContext {
 	}
 
 	/// Returns the node constructor for a given node id.
-	pub fn constructor(&self, node_id: NodeId) -> Option<NodeConstructor> {
+	pub fn constructor(&'n self, node_id: NodeId) -> Option<AnyNodeConstructor> {
 		self.constructor.get(&node_id).copied()
 	}
 
@@ -521,7 +521,7 @@ impl TypingContext {
 				dbg!(&self.inferred);
 				Err(format!(
 					"No implementations found for {identifier} with \ninput: {input:?} and \nparameters: {parameters:?}.\nOther Implementations found: {:?}",
-					impls,
+					impls.keys().collect::<Vec<_>>(),
 				))
 			}
 			[(org_nio, output)] => {

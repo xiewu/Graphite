@@ -5,10 +5,6 @@ use wgpu::util::DeviceExt;
 use super::context::Context;
 use bytemuck::Pod;
 use dyn_any::StaticTypeSized;
-use graph_craft::{
-	executor::{Any, Executor},
-	proto::LocalFuture,
-};
 
 #[derive(Debug)]
 pub struct GpuExecutor<'a, I: StaticTypeSized, O> {
@@ -25,20 +21,6 @@ impl<'a, I: StaticTypeSized, O> GpuExecutor<'a, I, O> {
 			entry_point,
 			shader,
 			_phantom: std::marker::PhantomData,
-		})
-	}
-}
-
-impl<'a, I: StaticTypeSized + Sync + Pod + Send, O: StaticTypeSized + Send + Sync + Pod> Executor for GpuExecutor<'a, I, O> {
-	fn execute<'i>(&'i self, input: Any<'i>) -> LocalFuture<Result<Any<'i>, Box<dyn std::error::Error>>> {
-		let input = dyn_any::downcast::<Vec<I>>(input).expect("Wrong input type");
-		let context = &self.context;
-		let future = execute_shader(context.device.clone(), context.queue.clone(), self.shader.to_vec(), *input, self.entry_point.clone());
-		Box::pin(async move {
-			let result = future.await;
-
-			let result: Vec<O> = result.ok_or_else(|| String::from("Failed to execute shader"))?;
-			Ok(Box::new(result) as Any)
 		})
 	}
 }

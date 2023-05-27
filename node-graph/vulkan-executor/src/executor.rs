@@ -1,8 +1,5 @@
 use super::context::Context;
 
-use graph_craft::executor::{Any, Executor};
-
-use graph_craft::proto::LocalFuture;
 use graphene_core::gpu::PushConstants;
 
 use bytemuck::Pod;
@@ -35,22 +32,6 @@ impl<I: StaticTypeSized, O> GpuExecutor<I, O> {
 			shader,
 			_phantom: std::marker::PhantomData,
 		})
-	}
-}
-
-impl<I: StaticTypeSized + Sync + Pod + Send, O: StaticTypeSized + Send + Sync + Pod> Executor for GpuExecutor<I, O> {
-	fn execute<'i>(&'i self, input: Any<'i>) -> LocalFuture<Result<Any<'i>, Box<dyn std::error::Error>>> {
-		let input = dyn_any::downcast::<Vec<I>>(input).expect("Wrong input type");
-		let context = &self.context;
-		let result: Vec<O> = execute_shader(
-			context.device.clone(),
-			context.queue.clone(),
-			self.shader.entry_point(&self.entry_point).expect("Entry point not found in shader"),
-			&context.allocator,
-			&context.command_buffer_allocator,
-			*input,
-		);
-		Box::pin(async move { Ok(Box::new(result) as Any) })
 	}
 }
 

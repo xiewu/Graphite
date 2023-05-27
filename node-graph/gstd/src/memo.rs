@@ -2,50 +2,43 @@ use futures::Future;
 
 use graphene_core::Node;
 
+use std::cell::UnsafeCell;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use xxhash_rust::xxh3::Xxh3;
 
 /// Caches the output of a given Node and acts as a proxy
 #[derive(Default)]
 pub struct CacheNode<T, CachedNode> {
-	// We have to use an append only data structure to make sure the references
-	// to the cache entries are always valid
-	cache: boxcar::Vec<(u64, T, AtomicBool)>,
+	cache: UnsafeCell<Option<T>>,
 	node: CachedNode,
 }
-impl<'i, T: 'i + Clone, I: 'i + Hash, CachedNode: 'i> Node<'i, I> for CacheNode<T, CachedNode>
+impl<'i, 'o: 'i, T: 'i + Clone + 'o, CachedNode: 'i> Node<'i, ()> for CacheNode<T, CachedNode>
 where
-	CachedNode: for<'any_input> Node<'any_input, I>,
-	for<'a> <CachedNode as Node<'a, I>>::Output: core::future::Future<Output = T> + 'a,
+	CachedNode: for<'any_input> Node<'any_input, ()>,
+	for<'a> <CachedNode as Node<'a, ()>>::Output: core::future::Future<Output = T> + 'a,
 {
 	// TODO: This should return a reference to the cached cached_value
 	// but that requires a lot of lifetime magic <- This was suggested by copilot but is pretty acurate xD
-	type Output = Pin<Box<dyn Future<Output = T> + 'i>>;
-	fn eval(&'i self, input: I) -> Self::Output {
+	type Output = Pin<Box<dyn Future<Output = &'i T> + 'i>>;
+	fn eval(&'i self, input: ()) -> Self::Output {
 		Box::pin(async move {
-			let mut hasher = Xxh3::new();
-			input.hash(&mut hasher);
-			let hash = hasher.finish();
-
-			if let Some((_, cached_value, keep)) = self.cache.iter().find(|(h, _, _)| *h == hash) {
-				keep.store(true, std::sync::atomic::Ordering::Relaxed);
-				cached_value.clone()
+			if let Some(ref cached_value) = unsafe { &*self.cache.get() } {
+				cached_value
 			} else {
-				trace!("Cache miss");
-				let output = self.node.eval(input).await;
-				let index = self.cache.push((hash, output, AtomicBool::new(true)));
-				self.cache[index].1.clone()
+				let value = self.node.eval(input).await;
+				unsafe {
+					*self.cache.get() = Some(value);
+					(&*self.cache.get()).as_ref().unwrap()
+				}
 			}
 		})
 	}
 
-	fn reset(mut self: Pin<&mut Self>) {
-		let old_cache = std::mem::take(&mut self.cache);
-		self.cache = old_cache.into_iter().filter(|(_, _, keep)| keep.swap(false, std::sync::atomic::Ordering::Relaxed)).collect();
+	unsafe fn reset(&self) {
+		*self.cache.get() = None;
 	}
 }
 
@@ -53,7 +46,7 @@ impl<T, CachedNode> std::marker::Unpin for CacheNode<T, CachedNode> {}
 
 impl<T, CachedNode> CacheNode<T, CachedNode> {
 	pub fn new(node: CachedNode) -> CacheNode<T, CachedNode> {
-		CacheNode { cache: boxcar::Vec::new(), node }
+		CacheNode { cache: Default::default(), node }
 	}
 }
 
@@ -85,40 +78,26 @@ impl<T> MonitorNode<T> {
 /// It provides two modes of operation, it can either be set
 /// when calling the node with a `Some<T>` variant or the last
 /// value that was added is returned when calling it with `None`
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Default)]
 pub struct LetNode<T> {
 	// We have to use an append only data structure to make sure the references
 	// to the cache entries are always valid
 	// TODO: We only ever access the last value so there is not really a reason for us
 	// to store the previous entries. This should be reworked in the future
-	cache: boxcar::Vec<(u64, T)>,
+	cache: UnsafeCell<Option<T>>,
 }
-impl<'i, T: 'i + Hash> Node<'i, Option<T>> for LetNode<T> {
+impl<'i, T: 'i> Node<'i, Option<T>> for LetNode<T> {
 	type Output = &'i T;
 	fn eval(&'i self, input: Option<T>) -> Self::Output {
-		match input {
-			Some(input) => {
-				let mut hasher = Xxh3::new();
-				input.hash(&mut hasher);
-				let hash = hasher.finish();
-
-				if let Some((cached_hash, cached_value)) = self.cache.iter().last() {
-					if hash == *cached_hash {
-						return cached_value;
-					}
-				}
-				trace!("Cache miss");
-				let index = self.cache.push((hash, input));
-				&self.cache[index].1
+		unsafe {
+			if let Some(input) = input {
+				*self.cache.get() = Some(input);
 			}
-			None => &self.cache.iter().last().expect("Let node was not initialized").1,
+			(*self.cache.get()).as_ref().expect("LetNode was not initialized")
 		}
 	}
-
-	fn reset(mut self: Pin<&mut Self>) {
-		if let Some(last) = std::mem::take(&mut self.cache).into_iter().last() {
-			self.cache = boxcar::vec![last];
-		}
+	unsafe fn reset(&self) {
+		*self.cache.get() = None;
 	}
 }
 
@@ -126,7 +105,7 @@ impl<T> std::marker::Unpin for LetNode<T> {}
 
 impl<T> LetNode<T> {
 	pub fn new() -> LetNode<T> {
-		LetNode { cache: boxcar::Vec::new() }
+		LetNode { cache: Default::default() }
 	}
 }
 
