@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use std::hash::Hash;
+use std::sync::Arc;
 use xxhash_rust::xxh3::Xxh3;
 
 use crate::document::NodeId;
@@ -13,14 +14,12 @@ use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
 pub type DynFuture<'n, T> = Pin<Box<dyn core::future::Future<Output = T> + 'n>>;
-pub type LocalFuture<'n, T> = Pin<Box<dyn core::future::Future<Output = T> + 'n>>;
 pub type Any<'n> = Box<dyn DynAny<'n> + 'n>;
 pub type FutureAny<'n> = DynFuture<'n, Any<'n>>;
-pub type TypeErasedNode<'n> = dyn for<'i> NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n;
-pub type TypeErasedPinnedRef<'n> = Pin<&'n (dyn for<'i> NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n)>;
-pub type TypeErasedPinned<'n> = Pin<Box<dyn for<'i> NodeIO<'i, Any<'i>, Output = FutureAny<'i>> + 'n>>;
+pub type TypeErasedNode<'n> = dyn for<'i> NodeIO<Any<'i>, Output = FutureAny<'i>> + 'n;
+pub type TypeErasedCell<'n> = Arc<TypeErasedNode<'n>>;
 
-pub type NodeConstructor = for<'a> fn(Vec<TypeErasedPinnedRef<'static>>) -> DynFuture<'static, TypeErasedPinned<'static>>;
+pub type NodeConstructor = for<'i> fn(Vec<TypeErasedCell<'i>>) -> DynFuture<'i, TypeErasedCell<'i>>;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Default, PartialEq, Clone, Hash, Eq)]
@@ -354,32 +353,6 @@ impl ProtoNetwork {
 		sorted
 	}
 
-	/*// Based on https://en.wikipedia.org/wiki/Topological_sorting#Kahn's_algorithm
-	pub fn topological_sort(&self) -> Vec<NodeId> {
-		let mut sorted = Vec::new();
-		let outwards_edges = self.collect_outwards_edges();
-		let mut inwards_edges = self.collect_inwards_edges();
-		let mut no_incoming_edges: Vec<_> = self.nodes.iter().map(|entry| entry.0).filter(|id| !inwards_edges.contains_key(id)).collect();
-
-		assert_ne!(no_incoming_edges.len(), 0, "Acyclic graphs must have at least one node with no incoming edge");
-
-		while let Some(node_id) = no_incoming_edges.pop() {
-			sorted.push(node_id);
-
-			if let Some(outwards_edges) = outwards_edges.get(&node_id) {
-				for &ref_id in outwards_edges {
-					let dependencies = inwards_edges.get_mut(&ref_id).unwrap();
-					dependencies.retain(|&id| id != node_id);
-					if dependencies.is_empty() {
-						no_incoming_edges.push(ref_id)
-					}
-				}
-			}
-		}
-		debug!("Sorted order {sorted:?}");
-		sorted
-	}*/
-
 	pub fn reorder_ids(&mut self) {
 		let order = self.topological_sort();
 		// Map of node ids to indexes (which become the node ids as they are inserted into the borrow stack)
@@ -406,16 +379,18 @@ impl ProtoNetwork {
 }
 
 /// The `TypingContext` is used to store the types of the nodes indexed by their stable node id.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Default, Clone)]
 pub struct TypingContext {
-	lookup: Cow<'static, HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstructor>>>,
+	lookup: Cow<'static, LookupTable>,
 	inferred: HashMap<NodeId, NodeIOTypes>,
-	constructor: HashMap<NodeId, NodeConstructor>,
+	chosen_impl: HashMap<NodeId, NodeIOTypes>,
+	identifiers: HashMap<NodeId, NodeIdentifier>,
 }
 
+type LookupTable = HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstructor>>;
+
 impl TypingContext {
-	/// Creates a new `TypingContext` with the given lookup table.
-	pub fn new(lookup: &'static HashMap<NodeIdentifier, HashMap<NodeIOTypes, NodeConstructor>>) -> Self {
+	pub fn new(lookup: &'static LookupTable) -> Self {
 		Self {
 			lookup: Cow::Borrowed(lookup),
 			..Default::default()
@@ -425,7 +400,7 @@ impl TypingContext {
 	/// Updates the `TypingContext` wtih a given proto network. This will infer the types of the nodes
 	/// and store them in the `inferred` field. The proto network has to be topologically sorted
 	/// and contain fully resolved stable node ids.
-	pub fn update(&mut self, network: &ProtoNetwork) -> Result<(), String> {
+	pub fn update<'n: 'i, 'i>(&mut self, network: &ProtoNetwork) -> Result<(), String> {
 		for (id, node) in network.nodes.iter() {
 			self.infer(*id, node)?;
 		}
@@ -433,8 +408,10 @@ impl TypingContext {
 	}
 
 	/// Returns the node constructor for a given node id.
-	pub fn constructor(&self, node_id: NodeId) -> Option<NodeConstructor> {
-		self.constructor.get(&node_id).copied()
+	pub fn constructor<'n: 'i, 'i>(&self, node_id: NodeId) -> Option<NodeConstructor> {
+		self.chosen_impl
+			.get(&node_id)
+			.and_then(|types| self.lookup.get(&self.identifiers[&node_id]).and_then(|constructors| constructors.get(types).copied()))
 	}
 
 	/// Returns the type of a given node id if it exists
@@ -443,13 +420,14 @@ impl TypingContext {
 	}
 
 	/// Returns the inferred types for a given node id.
-	pub fn infer(&mut self, node_id: NodeId, node: &ProtoNode) -> Result<NodeIOTypes, String> {
-		let identifier = node.identifier.name.clone();
-
+	pub fn infer<'n: 'i, 'i>(&mut self, node_id: NodeId, node: &ProtoNode) -> Result<NodeIOTypes, String> {
 		// Return the inferred type if it is already known
 		if let Some(infered) = self.inferred.get(&node_id) {
 			return Ok(infered.clone());
 		}
+
+		let identifier = node.identifier.name.clone();
+		self.identifiers.insert(node_id, node.identifier.clone());
 
 		let parameters = match node.construction_args {
 			// If the node has a value parameter we can infer the return type from it
@@ -491,10 +469,7 @@ impl TypingContext {
 		if matches!(input, Type::Generic(_)) {
 			return Err(format!("Generic types are not supported as inputs yet {:?} occured in {:?}", &input, node.identifier));
 		}
-		if parameters.iter().any(|p| match p {
-			Type::Fn(_, b) if matches!(b.as_ref(), Type::Generic(_)) => true,
-			_ => false,
-		}) {
+		if parameters.iter().any(|p| matches!(p, Type::Fn(_, b) if matches!(b.as_ref(), Type::Generic(_)))) {
 			return Err(format!("Generic types are not supported in parameters: {:?} occured in {:?}", parameters, node.identifier));
 		}
 		fn covariant(from: &Type, to: &Type) -> bool {
@@ -539,7 +514,7 @@ impl TypingContext {
 				dbg!(&self.inferred);
 				Err(format!(
 					"No implementations found for {identifier} with \ninput: {input:?} and \nparameters: {parameters:?}.\nOther Implementations found: {:?}",
-					impls,
+					impls.keys().collect::<Vec<_>>(),
 				))
 			}
 			[(org_nio, output)] => {
@@ -547,7 +522,7 @@ impl TypingContext {
 
 				// Save the inferred type
 				self.inferred.insert(node_id, node_io.clone());
-				self.constructor.insert(node_id, impls[org_nio]);
+				self.chosen_impl.insert(node_id, org_nio.clone());
 				Ok(node_io)
 			}
 			_ => Err(format!(
@@ -591,6 +566,10 @@ fn check_generic(types: &NodeIOTypes, input: &Type, parameters: &[Type], generic
 
 #[cfg(test)]
 mod test {
+	use std::marker::PhantomData;
+
+	use graphene_core::{generic::FnNode, ops::IdNode};
+
 	use super::*;
 	use crate::proto::{ConstructionArgs, ProtoNetwork, ProtoNode, ProtoNodeInput};
 
@@ -716,5 +695,15 @@ mod test {
 			.into_iter()
 			.collect(),
 		}
+	}
+
+	#[test]
+	fn type_erasure() {
+		//let node = FnNode::new(|_| Box::new(()) as Any);
+		//let node = FnNode::new(|_| ());
+		let node = IdNode;
+
+		let type_erased = Arc::new(node) as Arc<dyn DynNode<(), Output = ()>>; //as TypeErasedCell<'_, '_>;
+		type_erased.eval(());
 	}
 }

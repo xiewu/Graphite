@@ -1,5 +1,5 @@
 use super::DocumentNode;
-use crate::executor::Any;
+use crate::compiler::Any;
 pub use crate::imaginate_input::{ImaginateMaskStartingFill, ImaginateSamplingMethod, ImaginateStatus};
 use crate::proto::{Any as DAny, FutureAny};
 
@@ -300,6 +300,9 @@ impl<'a> TaggedValue {
 			_ => Err(format!("Cannot convert {:?} to TaggedValue", DynAny::type_name(input.as_ref()))),
 		}
 	}
+}
+unsafe impl StaticType for TaggedValue {
+	type Static = TaggedValue;
 }
 
 pub struct UpcastNode {
