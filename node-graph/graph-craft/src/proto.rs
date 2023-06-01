@@ -13,13 +13,10 @@ use graphene_core::*;
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
-pub type DynFuture<'n, T> = Pin<Box<dyn core::future::Future<Output = T> + 'n>>;
-pub type Any<'n> = Box<dyn DynAny<'n> + 'n>;
-pub type FutureAny<'n> = DynFuture<'n, Any<'n>>;
-pub type TypeErasedNode<'n> = dyn for<'i> NodeIO<Any<'i>, Output = FutureAny<'i>> + 'n;
-pub type TypeErasedCell<'n> = Arc<TypeErasedNode<'n>>;
+pub use graphene_core::dyn_exec::*;
+pub type TypeErasedCell<'n> = Box<TypeErasedNode<'n>>;
 
-pub type NodeConstructor = for<'i> fn(Vec<TypeErasedCell<'i>>) -> DynFuture<'i, TypeErasedCell<'i>>;
+pub type NodeConstructor = fn(Vec<TypeErasedCell>) -> DynFuture<'static, TypeErasedCell>;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Default, PartialEq, Clone, Hash, Eq)]

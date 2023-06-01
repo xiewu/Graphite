@@ -205,6 +205,12 @@ unsafe impl<T: StaticTypeSized> StaticType for dyn core::future::Future<Output =
 unsafe impl<T: StaticTypeSized> StaticType for dyn core::future::Future<Output = T> + '_ {
 	type Static = dyn core::future::Future<Output = T::Static>;
 }
+unsafe impl<T: StaticType> StaticType for ghost_cell::GhostCell<'_, T> {
+	type Static = ghost_cell::GhostCell<'static, T::Static>;
+}
+unsafe impl StaticType for ghost_cell::GhostToken<'_> {
+	type Static = ghost_cell::GhostToken<'static>;
+}
 #[cfg(feature = "alloc")]
 pub trait IntoDynAny<'n>: Sized + StaticType + 'n {
 	fn into_dyn(self) -> Box<dyn DynAny<'n> + 'n> {

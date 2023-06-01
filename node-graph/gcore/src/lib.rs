@@ -58,6 +58,7 @@ mod types;
 #[cfg(feature = "alloc")]
 pub use types::*;
 
+use dyn_any::StaticTypeSized;
 pub trait NodeIO<'i, Input: 'i>: 'i + Node<'i, Input>
 where
 	Self::Output: 'i + StaticTypeSized,
@@ -96,54 +97,81 @@ where
 {
 }
 
-/*impl<'i, I: 'i, O: 'i> Node<'i, I> for &'i dyn for<'n> Node<'n, I, Output = O> {
+use ghost_cell::{GhostCell, GhostToken};
+impl<'i, 'brand, I: 'i, N: Node<'i, I>> Node<'i, (I, &'i GhostToken<'brand>)> for GhostCell<'brand, N> {
+	type Output = N::Output;
+
+	fn eval(&'i self, input: (I, &'i GhostToken<'brand>)) -> Self::Output {
+		self.borrow(input.1).eval(input.0)
+	}
+}
+#[cfg(feature = "alloc")]
+pub mod dyn_exec {
+	use super::{Node, NodeIO};
+	use alloc::boxed::Box;
+	use core::pin::Pin;
+	use dyn_any::{DynAny, StaticType, StaticTypeSized};
+	use slotmap::{DefaultKey, SlotMap};
+
+	pub type DynFuture<'n, T> = Pin<Box<dyn core::future::Future<Output = T> + 'n>>;
+	pub type Any<'n> = Box<dyn DynAny<'n> + 'n>;
+	pub type FutureAny<'n> = DynFuture<'n, Any<'n>>;
+	#[derive(Clone, Copy)]
+	pub struct SlotInput<'i, T>(pub T, pub &'i SlotMap<DefaultKey, Box<TypeErasedNode<'i>>>);
+	impl<'i, T> SlotInput<'i, T> {
+		pub fn new(&self, arg: T) -> SlotInput<'i, T> {
+			SlotInput(arg, self.1)
+		}
+	}
+	unsafe impl<'i, T: StaticTypeSized> StaticType for SlotInput<'i, T> {
+		type Static = SlotInput<'static, T::Static>;
+	}
+	pub type AnySlotInput<'i> = SlotInput<'i, Any<'i>>;
+	//pub type SlotInput<'i> = (Any<'i>, &'i SlotMap<DefaultKey, Box<TypeErasedNode>>);
+	pub type TypeErasedNode<'n> = dyn for<'i> NodeIO<'i, AnySlotInput<'i>, Output = FutureAny<'i>> + 'n;
+
+	impl<'i> Node<'i, AnySlotInput<'i>> for DefaultKey {
+		type Output = FutureAny<'i>;
+
+		fn eval(&'i self, input: AnySlotInput<'i>) -> Self::Output {
+			input.1[*self].eval(input)
+		}
+	}
+}
+
+#[cfg(feature = "alloc")]
+impl<'i, 's: 'i, I: 'i, O: 'i, N: Node<'i, I, Output = O>> Node<'i, I> for alloc::sync::Arc<N> {
+	type Output = O;
+
+	fn eval(&'i self, input: I) -> Self::Output {
+		(*self.as_ref()).eval(input)
+	}
+}
+impl<'i, 's: 'i, I: 'i, O: 'i, N: Node<'i, I, Output = O>> Node<'i, I> for &'i N {
+	type Output = O;
+
+	fn eval(&'i self, input: I) -> Self::Output {
+		(**self).eval(input)
+	}
+}
+#[cfg(feature = "alloc")]
+impl<'i, I: 'i, O: 'i, N: Node<'i, I, Output = O>> Node<'i, I> for Box<N> {
+	type Output = O;
+
+	fn eval(&'i self, input: I) -> Self::Output {
+		(**self).eval(input)
+	}
+}
+
+/*
+// Specifically implement for trait objects because they would otherwise evaluated as unsized objetcs
+impl<'i, I: 'i, O: 'i> Node<'i, I> for &'i dyn Node<'i, I, Output = O> {
 	type Output = O;
 
 	fn eval(&'i self, input: I) -> Self::Output {
 		(**self).eval(input)
 	}
 }*/
-impl<'i, 's: 'i, I: 'i, O: 'i, N: Node<'i, I, Output = O>> Node<'i, I> for &'s N {
-	type Output = O;
-
-	fn eval(&'i self, input: I) -> Self::Output {
-		(**self).eval(input)
-	}
-}
-#[cfg(feature = "alloc")]
-impl<'i, 's: 'i, I: 'i, O: 'i, N: Node<'i, I, Output = O>> Node<'i, I> for Box<N> {
-	type Output = O;
-
-	fn eval(&'i self, input: I) -> Self::Output {
-		(**self).eval(input)
-	}
-}
-
-impl<'i, I: 'i, O: 'i> Node<'i, I> for &'i dyn for<'a> Node<'a, I, Output = O> {
-	type Output = O;
-
-	fn eval(&'i self, input: I) -> Self::Output {
-		(**self).eval(input)
-	}
-}
-use core::pin::Pin;
-
-use dyn_any::StaticTypeSized;
-#[cfg(feature = "alloc")]
-impl<'i, I: 'i, O: 'i> Node<'i, I> for Pin<Box<dyn for<'a> Node<'a, I, Output = O> + 'i>> {
-	type Output = O;
-
-	fn eval(&'i self, input: I) -> Self::Output {
-		(**self).eval(input)
-	}
-}
-impl<'i, I: 'i, O: 'i> Node<'i, I> for Pin<&'i (dyn NodeIO<'i, I, Output = O> + 'i)> {
-	type Output = O;
-
-	fn eval(&'i self, input: I) -> Self::Output {
-		(**self).eval(input)
-	}
-}
 
 pub use crate::application_io::{ExtractImageFrame, SurfaceFrame, SurfaceId};
 #[cfg(feature = "wasm")]

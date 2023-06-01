@@ -5,7 +5,7 @@ use wgpu::util::DeviceExt;
 use super::context::Context;
 use bytemuck::Pod;
 use dyn_any::StaticTypeSized;
-use graph_craft::{executor::Executor, proto::LocalFuture};
+use graph_craft::{compiler::Executor, proto::DynFuture};
 
 #[derive(Debug)]
 pub struct GpuExecutor<'a, I: StaticTypeSized, O> {
@@ -27,7 +27,7 @@ impl<'a, I: StaticTypeSized, O> GpuExecutor<'a, I, O> {
 }
 
 impl<'a, I: StaticTypeSized + Sync + Pod + Send, O: StaticTypeSized + Send + Sync + Pod> Executor<Vec<I>, Vec<O>> for GpuExecutor<'a, I, O> {
-	fn execute(&self, input: Vec<I>) -> LocalFuture<Result<Vec<O>, Box<dyn Error>>> {
+	fn execute(&self, input: Vec<I>) -> DynFuture<Result<Vec<O>, Box<dyn Error>>> {
 		let context = &self.context;
 		let future = execute_shader(context.device.clone(), context.queue.clone(), self.shader.to_vec(), input, self.entry_point.clone());
 		Box::pin(async move {

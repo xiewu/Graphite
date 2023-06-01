@@ -1014,6 +1014,7 @@ name = "dyn-any"
 version = "0.3.1"
 dependencies = [
  "dyn-any-derive",
+ "ghost-cell",
  "glam",
  "log",
 ]
@@ -1425,6 +1426,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ghost-cell"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5fdd3f2182d5fad2c97a25af8992c30e844a775f8fc7339dae5328377d164e6"
+
+[[package]]
 name = "gimli"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1652,11 +1659,14 @@ dependencies = [
  "bytemuck",
  "dyn-any",
  "dyn-clone",
+ "futures",
+ "ghost-cell",
  "glam",
  "graphene-core",
  "log",
  "num-traits",
  "serde",
+ "slotmap",
  "specta",
  "xxhash-rust",
 ]
@@ -1670,6 +1680,7 @@ dependencies = [
  "bezier-rs",
  "bytemuck",
  "dyn-any",
+ "ghost-cell",
  "glam",
  "js-sys",
  "kurbo",
@@ -1681,6 +1692,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rustybuzz",
  "serde",
+ "slotmap",
  "specta",
  "spin 0.9.8",
  "spirv-std",
@@ -1699,6 +1711,7 @@ dependencies = [
  "dyn-any",
  "dyn-clone",
  "futures",
+ "ghost-cell",
  "glam",
  "gpu-compiler-bin-wrapper",
  "gpu-executor",

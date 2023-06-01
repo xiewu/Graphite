@@ -304,5 +304,7 @@ mod test {
 		assert_eq!(fnn.eval((1u32, 2u32)), (2, 1));
 		let result: u32 = fns.eval(());
 		assert_eq!(result, 42);
+
+		AddParameterNode::new(IntNode::<42>).eval(2u32);
 	}
 }

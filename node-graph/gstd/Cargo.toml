@@ -10,12 +10,7 @@ license = "MIT OR Apache-2.0"
 
 [features]
 default = ["wgpu"]
-gpu = [
-	"graphene-core/gpu",
-	"gpu-compiler-bin-wrapper",
-	"compilation-client",
-	"gpu-executor",
-]
+gpu = ["graphene-core/gpu", "gpu-compiler-bin-wrapper", "compilation-client", "gpu-executor"]
 vulkan = ["gpu", "vulkan-executor"]
 wgpu = ["gpu", "wgpu-executor"]
 quantization = ["autoquant"]
@@ -53,6 +48,7 @@ xxhash-rust = { workspace = true }
 serde_json = "1.0.96"
 reqwest = { version = "0.11.17", features = ["rustls", "rustls-tls"] }
 futures = "0.3.28"
+ghost-cell = "0.2.3"
 
 [dependencies.serde]
 version = "1.0"

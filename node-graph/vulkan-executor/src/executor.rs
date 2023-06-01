@@ -2,9 +2,9 @@ use std::error::Error;
 
 use super::context::Context;
 
-use graph_craft::executor::Executor;
+use graph_craft::compiler::Executor;
 
-use graph_craft::proto::LocalFuture;
+use graph_craft::proto::DynFuture;
 use graphene_core::gpu::PushConstants;
 
 use bytemuck::Pod;
@@ -41,7 +41,7 @@ impl<I: StaticTypeSized, O> GpuExecutor<I, O> {
 }
 
 impl<'a, I: StaticTypeSized + Sync + Pod + Send + 'a, O: StaticTypeSized + Send + Sync + Pod + 'a> Executor<Vec<I>, Vec<O>> for &'a GpuExecutor<I, O> {
-	fn execute(&self, input: Vec<I>) -> LocalFuture<Result<Vec<O>, Box<dyn Error>>> {
+	fn execute(&self, input: Vec<I>) -> DynFuture<Result<Vec<O>, Box<dyn Error>>> {
 		let context = &self.context;
 		let result: Vec<O> = execute_shader(
 			context.device.clone(),
