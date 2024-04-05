@@ -16,10 +16,11 @@ pub fn empty_provider() -> OverlayProvider {
 
 #[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct OverlayContext {
-	// Serde functionality isn't used but is required by the message system macros
+	// Serde serialization functionality isn't used but is required by the message system macros.
+	// However it does instantiate the canvas context through its default value.
 	#[serde(skip, default = "overlay_canvas_context")]
 	#[specta(skip)]
-	pub render_context: web_sys::CanvasRenderingContext2d,
+	pub render_context: Option<web_sys::CanvasRenderingContext2d>,
 	pub size: DVec2,
 }
 // Message hashing isn't used but is required by the message system macros

@@ -46,6 +46,7 @@
 
 <style lang="scss" global>
 	.status-bar {
+		background: var(--color-2-mildblack);
 		height: 24px;
 		width: 100%;
 		flex: 0 0 auto;

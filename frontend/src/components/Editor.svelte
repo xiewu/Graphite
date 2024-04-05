@@ -61,11 +61,6 @@
 <MainWindow />
 
 <style lang="scss" global>
-	// Disable the spinning loading indicator
-	body::after {
-		content: none !important;
-	}
-
 	:root {
 		// Replace usage of `-rgb` variants with CSS color() function to calculate alpha when browsers support it
 		// See https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/color() and https://caniuse.com/css-color-function
@@ -167,10 +162,11 @@
 	body {
 		margin: 0;
 		height: 100%;
-		background: var(--color-2-mildblack);
+		// background: var(--color-2-mildblack);
 		overscroll-behavior: none;
 		-webkit-user-select: none; // Required as of Safari 15.0 (Graphite's minimum version) through the latest release
 		user-select: none;
+		background: transparent !important;
 	}
 
 	// The default value of `auto` from the CSS spec is a footgun with flexbox layouts:
@@ -298,5 +294,10 @@
 	// Variant: dark outline over light colors (when the checkbox is checked)
 	:not(.optional-input) > .checkbox-input input:focus-visible + label.checked {
 		outline: 1px dashed var(--color-2-mildblack);
+	}
+
+	// Disable the spinning loading indicator
+	body::after {
+		content: none !important;
 	}
 </style>

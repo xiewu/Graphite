@@ -24,11 +24,11 @@ impl MessageHandler<OverlaysMessage, OverlaysMessageData<'_>> for OverlaysMessag
 				use super::utility_types::OverlayContext;
 				use wasm_bindgen::JsCast;
 
-				let canvas = self.canvas.get_or_insert_with(|| overlay_canvas_element().expect("Failed to get canvas element"));
+				let canvas = self.canvas.get_or_insert_with(|| overlay_canvas_element().expect("Failed to get canvas element for drawing overlays"));
 
 				let context = self.context.get_or_insert_with(|| {
-					let context = canvas.get_context("2d").ok().flatten().expect("Failed to get canvas context");
-					context.dyn_into().expect("Context should be a canvas 2d context")
+					let context = canvas.get_context("2d").ok().flatten().expect("Failed to get canvas context for drawing overlays");
+					context.dyn_into().expect("Context should be a canvas 2d context for drawing overlays")
 				});
 
 				let size = ipp.viewport_bounds.size().as_uvec2();

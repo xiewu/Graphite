@@ -148,11 +148,11 @@
 
 <style lang="scss" global>
 	.panel {
-		background: var(--color-1-nearblack);
 		border-radius: 6px;
 		overflow: hidden;
 
 		.tab-bar {
+			background: var(--color-1-nearblack);
 			height: 28px;
 			min-height: auto;
 
@@ -260,6 +260,10 @@
 			background: var(--color-3-darkgray);
 			flex: 1 1 100%;
 			flex-direction: column;
+
+			&:has(.document) {
+				background: transparent;
+			}
 
 			> div {
 				padding-bottom: 4px;

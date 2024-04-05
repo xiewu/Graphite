@@ -114,6 +114,7 @@
 	.scrollbar-input {
 		display: flex;
 		flex: 1 1 100%;
+		background: var(--color-3-darkgray);
 
 		.arrow {
 			flex: 0 0 auto;

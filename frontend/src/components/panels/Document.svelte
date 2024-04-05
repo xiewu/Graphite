@@ -36,6 +36,8 @@
 	const editor = getContext<Editor>("editor");
 	const document = getContext<DocumentState>("document");
 
+	let invisibleViewport = true;
+
 	// Interactive text editing
 	let textInput: undefined | HTMLDivElement = undefined;
 	let showTextInput: boolean;
@@ -485,18 +487,36 @@
 							y={cursorTop}
 						/>
 					{/if}
-					<div class="viewport" on:pointerdown={(e) => canvasPointerDown(e)} on:dragover={(e) => e.preventDefault()} on:drop={(e) => pasteFile(e)} bind:this={viewport} data-viewport>
-						<svg class="artboards" style:width={canvasWidthCSS} style:height={canvasHeightCSS}>
-							{@html artworkSvg}
-						</svg>
-						<div class="text-input" style:width={canvasWidthCSS} style:height={canvasHeightCSS} style:pointer-events={showTextInput ? "auto" : ""}>
-							{#if showTextInput}
-								<div bind:this={textInput} style:transform="matrix({textInputMatrix})" />
-							{/if}
+					{#if !invisibleViewport}
+						<!-- TODO: Remove `.invisible` -->
+						<div
+							class="viewport"
+							class:invisible={invisibleViewport}
+							on:pointerdown={(e) => canvasPointerDown(e)}
+							on:dragover={(e) => e.preventDefault()}
+							on:drop={(e) => pasteFile(e)}
+							bind:this={viewport}
+							data-viewport
+						>
+							<svg class="artboards" style:width={canvasWidthCSS} style:height={canvasHeightCSS}>
+								{@html artworkSvg}
+							</svg>
+							<div class="text-input" style:width={canvasWidthCSS} style:height={canvasHeightCSS} style:pointer-events={showTextInput ? "auto" : ""}>
+								{#if showTextInput}
+									<div bind:this={textInput} style:transform="matrix({textInputMatrix})" />
+								{/if}
+							</div>
+							<canvas
+								class="overlays"
+								width={canvasWidthRoundedToEven}
+								height={canvasHeightRoundedToEven}
+								style:width={canvasWidthCSS}
+								style:height={canvasHeightCSS}
+								data-overlays-canvas
+							>
+							</canvas>
 						</div>
-						<canvas class="overlays" width={canvasWidthRoundedToEven} height={canvasHeightRoundedToEven} style:width={canvasWidthCSS} style:height={canvasHeightCSS} data-overlays-canvas>
-						</canvas>
-					</div>
+					{/if}
 					<div class="graph-view" class:open={$document.graphViewOverlayOpen} style:--fade-artwork="80%" data-graph>
 						<Graph />
 					</div>
@@ -535,7 +555,8 @@
 		.options-bar {
 			height: 32px;
 			flex: 0 0 auto;
-			margin: 0 4px;
+			padding: 0 4px;
+			background: var(--color-3-darkgray);
 
 			.spacer {
 				min-width: 40px;
@@ -576,6 +597,7 @@
 				justify-content: space-between;
 				// A precaution in case the variables above somehow fail
 				max-width: var(--columns-width-max);
+				background: var(--color-3-darkgray);
 
 				.tools {
 					flex: 0 1 auto;
@@ -665,8 +687,12 @@
 					margin-top: -16px;
 				}
 
-				.bottom-scrollbar .scrollbar-input {
-					margin-right: 16px;
+				.bottom-scrollbar {
+					background: var(--color-3-darkgray);
+
+					.scrollbar-input {
+						margin-right: 16px;
+					}
 				}
 
 				.viewport-container {
@@ -680,6 +706,10 @@
 						// Allows the SVG to be placed at explicit integer values of width and height to prevent non-pixel-perfect SVG scaling
 						position: relative;
 						overflow: hidden;
+
+						&.invisible {
+							visibility: hidden;
+						}
 
 						.artwork,
 						.text-input,

@@ -97,6 +97,7 @@
 
 <style lang="scss" global>
 	.title-bar {
+		background: var(--color-2-mildblack);
 		height: 28px;
 		flex: 0 0 auto;
 

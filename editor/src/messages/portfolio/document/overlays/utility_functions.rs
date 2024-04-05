@@ -8,6 +8,7 @@ use graphene_core::vector::{ManipulatorPointId, SelectedType};
 
 use glam::DVec2;
 use wasm_bindgen::JsCast;
+use web_sys::HtmlCanvasElement;
 
 pub fn overlay_canvas_element() -> Option<web_sys::HtmlCanvasElement> {
 	let window = web_sys::window()?;
@@ -16,12 +17,16 @@ pub fn overlay_canvas_element() -> Option<web_sys::HtmlCanvasElement> {
 	canvas.dyn_into::<web_sys::HtmlCanvasElement>().ok()
 }
 
-pub fn overlay_canvas_context() -> web_sys::CanvasRenderingContext2d {
+pub fn overlay_canvas_context() -> Option<web_sys::CanvasRenderingContext2d> {
 	let create_context = || {
 		let context = overlay_canvas_element()?.get_context("2d").ok().flatten()?;
 		context.dyn_into().ok()
 	};
-	create_context().expect("Failed to get canvas context")
+	let context = create_context();
+	if context.is_none() {
+		log::warn!("Failed to get canvas context for drawing overlays");
+	}
+	context
 }
 
 pub fn path_overlays(document: &DocumentMessageHandler, shape_editor: &mut ShapeState, overlay_context: &mut OverlayContext) {
