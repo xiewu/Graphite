@@ -795,17 +795,18 @@ impl MessageHandler<DocumentMessage, DocumentMessageData<'_>> for DocumentMessag
 				};
 
 				let ruler_origin = document_to_viewport.transform_point2(DVec2::ZERO);
-				let log = ruler_scale.log2();
-				let mut ruler_interval: f64 = if log < 0. { 100. * 2_f64.powf(-log.ceil()) } else { 100. / 2_f64.powf(log.ceil()) };
+				let base = ruler_scale.log10();
+				let rounded_base = base.ceil();
+				let base_remainder = base - rounded_base + 1.;
+				let mut ruler_interval: f64 = 100. / 10_f64.powf(rounded_base);
 
-				// When the interval becomes too small, force it to be a whole number, then to powers of 10.
-				// The progression of intervals is:
-				// ..., 100, 50, 25, 12.5, 6 (6.25), 4 (3.125), 2 (1.5625), 1, 0.1, 0.01, ...
-				if ruler_interval < 1. {
-					ruler_interval = 10_f64.powf(ruler_interval.log10().ceil());
-				} else if ruler_interval < 12.5 {
-					// Round to nearest even number
-					ruler_interval = 2. * (ruler_interval / 2.).round();
+				// About log(2)
+				if base_remainder < 0.3 {
+					ruler_interval *= 5.;
+				}
+				// About log(5)
+				else if base_remainder < 0.7 {
+					ruler_interval *= 2.;
 				}
 
 				if self.graph_view_overlay_open {
