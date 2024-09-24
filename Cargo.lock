@@ -3583,6 +3583,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lyon_geom"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edecfb8d234a2b0be031ab02ebcdd9f3b9ee418fb35e265f7a540a48d197bff9"
+dependencies = [
+ "arrayvec",
+ "euclid",
+ "num-traits",
+]
+
+[[package]]
 name = "mac"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4399,6 +4410,7 @@ dependencies = [
  "glam",
  "glob",
  "image 0.24.9",
+ "lyon_geom",
  "regex",
  "resvg",
  "slotmap",
