@@ -4414,6 +4414,7 @@ dependencies = [
  "regex",
  "resvg",
  "roots",
+ "rustc-hash 2.0.0",
  "slotmap",
  "svg",
 ]
