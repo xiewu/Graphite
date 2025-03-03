@@ -52,14 +52,10 @@ async fn main() {
 		.apply()
 		.unwrap();
 
-	std::thread::spawn(|| {
-		let set = tokio::task::LocalSet::new();
+	std::thread::spawn(|| loop {
+		futures::executor::block_on(graphite_editor::node_graph_executor::run_node_graph());
 
-		loop {
-			set.spawn_local(graphite_editor::node_graph_executor::run_node_graph());
-
-			std::thread::sleep(std::time::Duration::from_millis(16))
-		}
+		std::thread::sleep(std::time::Duration::from_millis(16))
 	});
 
 	// *(IMAGES.lock().unwrap()) = Some(HashMap::new());
