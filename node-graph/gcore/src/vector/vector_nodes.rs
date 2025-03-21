@@ -222,7 +222,7 @@ where
 		let translation = index as f64 * direction / total;
 		let modification = DAffine2::from_translation(center) * DAffine2::from_angle(angle) * DAffine2::from_translation(translation) * DAffine2::from_translation(-center);
 
-		let mut new_graphic_element = instance.to_graphic_element().clone();
+		let mut new_graphic_element = instance.to_graphic_element();
 		new_graphic_element.new_ids_from_hash(Some(crate::uuid::NodeId(index as u64)));
 
 		let new_instance = result_table.push(new_graphic_element);
@@ -257,7 +257,7 @@ where
 		let rotation = DAffine2::from_angle((std::f64::consts::TAU / instances as f64) * index as f64 + angle_offset.to_radians());
 		let modification = DAffine2::from_translation(center) * rotation * DAffine2::from_translation(base_transform);
 
-		let mut new_graphic_element = instance.to_graphic_element().clone();
+		let mut new_graphic_element = instance.to_graphic_element();
 		new_graphic_element.new_ids_from_hash(Some(crate::uuid::NodeId(index as u64)));
 
 		let new_instance = result_table.push(new_graphic_element);
@@ -326,7 +326,7 @@ where
 			random_scale_min
 		};
 
-		let mut new_graphic_element = instance.to_graphic_element().clone();
+		let mut new_graphic_element = instance.to_graphic_element();
 		new_graphic_element.new_ids_from_hash(Some(crate::uuid::NodeId(index as u64)));
 
 		let new_instance = result_table.push(new_graphic_element);
@@ -342,6 +342,7 @@ async fn mirror<I: 'n + Send>(
 	#[implementations(VectorDataTable, GraphicGroupTable)] instance: Instances<I>,
 	#[default(0., 0.)] center: DVec2,
 	#[range((-90., 90.))] angle: Angle,
+	#[default(true)] keep_original: bool,
 ) -> GraphicGroupTable
 where
 	Instances<I>: GraphicElementRendered,
@@ -362,11 +363,13 @@ where
 	);
 	// Apply reflection around the center point
 	let modification = DAffine2::from_translation(mirror_center) * reflection * DAffine2::from_translation(-mirror_center);
-	// Add original instance to result
-	let original_element = instance.to_graphic_element().clone();
-	result_table.push(original_element);
+	// Add original instance to result, if desired
+	if keep_original {
+		let original_element = instance.to_graphic_element();
+		result_table.push(original_element);
+	}
 	// Create and add mirrored instance
-	let mut mirrored_element = instance.to_graphic_element().clone();
+	let mut mirrored_element = instance.to_graphic_element();
 	mirrored_element.new_ids_from_hash(None);
 	// Finally, apply the transformation to the mirrored instance
 	let mirrored_instance = result_table.push(mirrored_element);
@@ -392,6 +395,7 @@ async fn round_corners(
 ) -> VectorDataTable {
 	let source_transform = source.transform();
 	let source_transform_inverse = source_transform.inverse();
+	let source_node_id = *source.one_instance().source_node_id;
 	let source = source.one_instance().instance;
 
 	// Flip the roundness to help with user intuition
@@ -442,7 +446,7 @@ async fn round_corners(
 				continue;
 			}
 
-			// Calculate L, with limits to avoid extreme values
+			// Calculate distance along edge, with limits to avoid extreme values
 			let distance_along_edge = radius / (theta / 2.).sin();
 			let distance_along_edge = distance_along_edge.min(edge_length_limit * (curr - prev).length().min((next - curr).length())).max(0.01);
 
@@ -451,20 +455,20 @@ async fn round_corners(
 			let p2 = curr + dir2 * distance_along_edge;
 
 			// Add first point with out handle
-			new_groups.push(ManipulatorGroup {
-				anchor: p1,
-				in_handle: None,
-				out_handle: Some(curr - dir1 * distance_along_edge * roundness),
-				id: PointId::generate(),
-			});
+			// new_groups.push(ManipulatorGroup {
+			// 	anchor: p1,
+			// 	in_handle: None,
+			// 	out_handle: Some(curr - dir1 * distance_along_edge * roundness),
+			// 	id: PointId::generate(),
+			// });
 
 			// Add second point with in handle
-			new_groups.push(ManipulatorGroup {
-				anchor: p2,
-				in_handle: Some(curr + dir2 * distance_along_edge * roundness),
-				out_handle: None,
-				id: PointId::generate(),
-			});
+			// new_groups.push(ManipulatorGroup {
+			// 	anchor: p2,
+			// 	in_handle: Some(curr + dir2 * distance_along_edge * roundness),
+			// 	out_handle: None,
+			// 	id: PointId::generate(),
+			// });
 		}
 
 		let mut rounded_subpath = Subpath::new(new_groups, is_closed);
@@ -474,6 +478,7 @@ async fn round_corners(
 
 	let mut result_table = VectorDataTable::new(result);
 	*result_table.transform_mut() = source_transform;
+	*result_table.one_instance_mut().source_node_id = source_node_id;
 	result_table
 }
 
