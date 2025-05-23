@@ -427,7 +427,7 @@ where
 }
 
 #[node_macro::node(category("Vector"), path(graphene_core::vector))]
-async fn round_corners2(
+async fn round_corners(
 	_: impl Ctx,
 	source: VectorDataTable,
 	#[hard_min(0.)]
@@ -464,36 +464,53 @@ async fn round_corners2(
 		result.style = source.style.clone();
 
 		// Grab the initial point ID as a stable starting point
-		let mut initial_point_id = source.point_domain.ids().first().copied().unwrap_or(PointId::generate());
+		// let mut initial_point_id = source.point_domain.ids().first().copied().unwrap_or(PointId::generate());
 
-		for mut subpath in source.stroke_bezier_paths() {
-			subpath.apply_transform(source_transform);
+		for mut bezpath in source.stroke_bezpath_iter() {
+			bezpath.apply_affine(Affine::new(source_transform.to_cols_array()));
+
+			let segments = bezpath.segments().collect::<Vec<PathSeg>>();
 
 			// End if not enough points for corner rounding
-			if subpath.manipulator_groups().len() < 3 {
-				result.append_subpath(subpath, false);
+			if segments.len() < 2 {
+				result.append_bezpath(bezpath);
 				continue;
 			}
 
-			let groups = subpath.manipulator_groups();
-			let mut new_groups = Vec::new();
-			let is_closed = subpath.closed();
+			let mut new_bezpath = BezPath::new();
+			// NOTE: Here segments len is greater than one so it's safe to unwrap().
+			let is_closed = segments.first().unwrap().start() == segments.last().unwrap().end();
+			info!("is closed => {}", is_closed);
 
-			for i in 0..groups.len() {
+			let mut prev_rounded = false;
+
+			for i in 0..segments.len() {
+				info!("i => {}", i);
 				// Skip first and last points for open paths
-				if !is_closed && (i == 0 || i == groups.len() - 1) {
-					new_groups.push(groups[i]);
-					continue;
+				if !is_closed && (i == 0 || i == segments.len() - 1) {
+					// new_bezpath.push(groups[i]);
+					info!("i {}, len {}, prev_rounded {}", i, segments.len(), prev_rounded);
+					if i == 0 {
+						new_bezpath.move_to(segments[0].start());
+					} else {
+						if prev_rounded {
+							new_bezpath.line_to(segments.last().unwrap().end())
+						} else {
+							new_bezpath.push(segments.last().unwrap().as_path_el());
+						}
+						continue;
+					}
 				}
+				info!("for start bezpath => {:#?}", new_bezpath);
 
 				// Not the prettiest, but it makes the rest of the logic more readable
-				let prev_idx = if i == 0 { if is_closed { groups.len() - 1 } else { 0 } } else { i - 1 };
+				let prev_idx = if i == 0 { if is_closed { segments.len() - 1 } else { 0 } } else { i - 1 };
 				let curr_idx = i;
-				let next_idx = if i == groups.len() - 1 { if is_closed { 0 } else { i } } else { i + 1 };
+				let next_idx = if i == segments.len() - 1 { if is_closed { 0 } else { i } } else { i + 1 };
 
-				let prev = groups[prev_idx].anchor;
-				let curr = groups[curr_idx].anchor;
-				let next = groups[next_idx].anchor;
+				let prev = point_to_dvec2(segments[curr_idx].start());
+				let curr = point_to_dvec2(segments[curr_idx].end());
+				let next = point_to_dvec2(segments[next_idx].end());
 
 				let dir1 = (curr - prev).normalize_or(DVec2::X);
 				let dir2 = (next - curr).normalize_or(DVec2::X);
@@ -501,8 +518,12 @@ async fn round_corners2(
 				let theta = PI - dir1.angle_to(dir2).abs();
 
 				// Skip near-straight corners
+				let curr_seg = segments[i];
 				if theta > PI - min_angle_threshold.to_radians() {
-					new_groups.push(groups[curr_idx]);
+					let n = if prev_rounded { PathEl::LineTo(curr_seg.end()) } else { curr_seg.as_path_el() };
+					new_bezpath.push(n);
+					// new_bezpath.push(segments[curr_idx].as_path_el());
+					prev_rounded = false;
 					continue;
 				}
 
@@ -515,26 +536,39 @@ async fn round_corners2(
 				let p2 = curr + dir2 * distance_along_edge;
 
 				// Add first point (coming into the rounded corner)
-				new_groups.push(ManipulatorGroup {
-					anchor: p1,
-					in_handle: None,
-					out_handle: Some(curr - dir1 * distance_along_edge * roundness),
-					id: initial_point_id.next_id(),
-				});
+				// let curr_seg = segments[curr_idx];
+				if new_bezpath.elements().is_empty() {
+					new_bezpath.push(PathEl::MoveTo(dvec2_to_point(p1)));
+				} else {
+					new_bezpath.push(PathEl::LineTo(dvec2_to_point(p1)));
+				}
+				// new_bezpath.push(ManipulatorGroup {
+				// 	anchor: p1,
+				// 	in_handle: None,
+				// 	out_handle: Some(curr - dir1 * distance_along_edge * roundness),
+				// 	id: initial_point_id.next_id(),
+				// });
 
 				// Add second point (coming out of the rounded corner)
-				new_groups.push(ManipulatorGroup {
-					anchor: p2,
-					in_handle: Some(curr + dir2 * distance_along_edge * roundness),
-					out_handle: None,
-					id: initial_point_id.next_id(),
-				});
+				// new_bezpath.push(ManipulatorGroup {
+				// 	anchor: p2,
+				// 	in_handle: Some(curr + dir2 * distance_along_edge * roundness),
+				// 	out_handle: None,
+				// 	id: initial_point_id.next_id(),
+				// });
+				let point1 = dvec2_to_point(curr - dir1 * distance_along_edge * roundness);
+				let point2 = dvec2_to_point(curr + dir2 * distance_along_edge * roundness);
+				let point3 = dvec2_to_point(p2);
+				new_bezpath.push(PathEl::CurveTo(point1, point2, point3));
+
+				prev_rounded = true;
+				info!("for end bezpath => {:#?}", new_bezpath);
 			}
 
 			// One subpath for each shape
-			let mut rounded_subpath = Subpath::new(new_groups, is_closed);
-			rounded_subpath.apply_transform(source_transform_inverse);
-			result.append_subpath(rounded_subpath, false);
+			// let mut rounded_subpath = Subpath::new(new_bezpath, is_closed);
+			new_bezpath.apply_affine(Affine::new(source_transform_inverse.to_cols_array()));
+			result.append_bezpath(new_bezpath);
 		}
 
 		result.upstream_graphic_group = upstream_graphic_group;
