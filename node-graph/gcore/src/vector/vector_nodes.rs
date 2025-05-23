@@ -16,7 +16,7 @@ use bezier_rs::{Join, ManipulatorGroup, Subpath, SubpathTValue};
 use core::f64::consts::PI;
 use core::hash::{Hash, Hasher};
 use glam::{DAffine2, DVec2};
-use kurbo::{Affine, BezPath, Shape};
+use kurbo::{Affine, BezPath, ParamCurve, PathEl, PathSeg, Shape};
 use rand::{Rng, SeedableRng};
 use std::collections::hash_map::DefaultHasher;
 
@@ -427,7 +427,7 @@ where
 }
 
 #[node_macro::node(category("Vector"), path(graphene_core::vector))]
-async fn round_corners(
+async fn round_corners2(
 	_: impl Ctx,
 	source: VectorDataTable,
 	#[hard_min(0.)]
@@ -535,6 +535,138 @@ async fn round_corners(
 			let mut rounded_subpath = Subpath::new(new_groups, is_closed);
 			rounded_subpath.apply_transform(source_transform_inverse);
 			result.append_subpath(rounded_subpath, false);
+		}
+
+		result.upstream_graphic_group = upstream_graphic_group;
+
+		result_table.push(Instance {
+			instance: result,
+			transform: source_transform,
+			alpha_blending: Default::default(),
+			source_node_id: None,
+		});
+	}
+
+	result_table
+}
+
+#[node_macro::node(category("Vector"), path(graphene_core::vector))]
+async fn round_corners(
+	_: impl Ctx,
+	source: VectorDataTable,
+	#[hard_min(0.)]
+	#[default(10.)]
+	radius: PixelLength,
+	#[range((0., 1.))]
+	#[hard_min(0.)]
+	#[hard_max(1.)]
+	#[default(0.5)]
+	roundness: f64,
+	#[default(100.)] edge_length_limit: Percentage,
+	#[range((0., 180.))]
+	#[hard_min(0.)]
+	#[hard_max(180.)]
+	#[default(5.)]
+	min_angle_threshold: Angle,
+) -> VectorDataTable {
+	let source_transform = source.transform();
+	let source_transform_inverse = source_transform.inverse();
+
+	let mut result_table = VectorDataTable::empty();
+
+	for source in source.instance_ref_iter() {
+		let source = source.instance;
+
+		let upstream_graphic_group = source.upstream_graphic_group.clone();
+
+		// Flip the roundness to help with user intuition
+		let roundness = 1. - roundness;
+		// Convert 0-100 to 0-0.5
+		let edge_length_limit = edge_length_limit * 0.005;
+
+		let mut result = VectorData::empty();
+		result.style = source.style.clone();
+
+		for mut bezpath in source.stroke_bezpath_iter() {
+			bezpath.apply_affine(Affine::new(source_transform.to_cols_array()));
+
+			let segments = bezpath.segments().collect::<Vec<PathSeg>>();
+			info!("segments => {:#?}", segments);
+
+			// End if not enough points for corner rounding
+			if segments.len() < 3 {
+				result.append_bezpath(bezpath);
+				continue;
+			}
+
+			let mut rounded_bezpath = BezPath::new();
+			let is_closed = segments[0].start() == segments[segments.len() - 1].end();
+			log::info!("is_closed => {}", is_closed);
+
+			for i in 0..segments.len() {
+				// Skip first and last points for open paths
+				if !is_closed && (i == 0 || i == segments.len() - 1) {
+					let curr_segment = segments[i];
+
+					if i == 0 {
+						rounded_bezpath.push(PathEl::MoveTo(curr_segment.start()));
+					} else {
+						rounded_bezpath.push(PathEl::LineTo(curr_segment.end()));
+						continue;
+					}
+				}
+
+				// Not the prettiest, but it makes the rest of the logic more readable
+				let prev_idx = if i == 0 { if is_closed { segments.len() - 1 } else { 0 } } else { i - 1 };
+				let curr_idx = i;
+				let next_idx = if i == segments.len() - 1 { if is_closed { 0 } else { i } } else { i + 1 };
+
+				let prev = point_to_dvec2(segments[curr_idx].start());
+				let curr = point_to_dvec2(segments[curr_idx].end());
+				let next = point_to_dvec2(segments[next_idx].end());
+
+				let dir1 = (curr - prev).normalize_or(DVec2::X);
+				let dir2 = (next - curr).normalize_or(DVec2::X);
+
+				let theta = PI - dir1.angle_to(dir2).abs();
+
+				// Skip near-straight corners
+				if theta > PI - min_angle_threshold.to_radians() {
+					rounded_bezpath.push(PathEl::LineTo(segments[curr_idx].end()));
+					continue;
+				}
+
+				// Calculate L, with limits to avoid extreme values
+				let distance_along_edge = radius / (theta / 2.).sin();
+				let distance_along_edge = distance_along_edge.min(edge_length_limit * (curr - prev).length().min((next - curr).length())).max(0.01);
+
+				// Find points on each edge at distance L from corner
+				let p1 = curr - dir1 * distance_along_edge;
+				let p2 = curr + dir2 * distance_along_edge;
+
+				// Add first point (coming into the rounded corner)
+				if rounded_bezpath.elements().is_empty() {
+					rounded_bezpath.push(PathEl::MoveTo(dvec2_to_point(p1)));
+				} else {
+					rounded_bezpath.push(PathEl::LineTo(dvec2_to_point(p1)));
+				}
+
+				// Add second point (coming out of the rounded corner)
+				let point1 = dvec2_to_point(curr - dir1 * distance_along_edge * roundness);
+				let point2 = dvec2_to_point(curr + dir2 * distance_along_edge * roundness);
+				let point3 = dvec2_to_point(p2);
+				rounded_bezpath.push(PathEl::CurveTo(point1, point2, point3));
+			}
+
+			if is_closed {
+				rounded_bezpath.close_path();
+			}
+
+			log::info!("appending bezpath");
+
+			// One subpath for each shape
+			rounded_bezpath.apply_affine(Affine::new(source_transform_inverse.to_cols_array()));
+			result.append_bezpath(rounded_bezpath);
 		}
 
 		result.upstream_graphic_group = upstream_graphic_group;
