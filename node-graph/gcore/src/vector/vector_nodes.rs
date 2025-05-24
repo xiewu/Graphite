@@ -486,7 +486,12 @@ async fn round_corners(
 					if i == 0 {
 						new_bezpath.move_to(segments[0].start());
 					} else if prev_rounded {
-						new_bezpath.line_to(segments.last().unwrap().end())
+						let curr_seg = segments.last().unwrap();
+						let n = match curr_seg.as_path_el() {
+							PathEl::CurveTo(point, point1, point2) => PathEl::QuadTo(point1, point2),
+							el => el,
+						};
+						new_bezpath.push(n);
 					} else {
 						new_bezpath.push(segments.last().unwrap().as_path_el());
 					}
@@ -508,7 +513,15 @@ async fn round_corners(
 				// Skip near-straight corners
 				let curr_seg = segments[i];
 				if theta > PI - min_angle_threshold.to_radians() {
-					let n = if prev_rounded { PathEl::LineTo(curr_seg.end()) } else { curr_seg.as_path_el() };
+					// let n = if prev_rounded { PathEl::LineTo(curr_seg.end()) } else { curr_seg.as_path_el() };
+					let n = if prev_rounded {
+						match curr_seg.as_path_el() {
+							PathEl::CurveTo(point, point1, point2) => PathEl::QuadTo(point1, point2),
+							el => el,
+						}
+					} else {
+						curr_seg.as_path_el()
+					};
 					new_bezpath.push(n);
 					prev_rounded = false;
 					continue;
@@ -525,7 +538,15 @@ async fn round_corners(
 				if new_bezpath.elements().is_empty() {
 					new_bezpath.push(PathEl::MoveTo(dvec2_to_point(p1)));
 				} else {
-					new_bezpath.push(PathEl::LineTo(dvec2_to_point(p1)));
+					let n = if prev_rounded {
+						PathEl::LineTo(dvec2_to_point(p1))
+					} else {
+						match curr_seg.as_path_el() {
+							PathEl::CurveTo(point, _, _) => PathEl::QuadTo(point, dvec2_to_point(p1)),
+							el => el,
+						}
+					};
+					new_bezpath.push(n);
 				}
 
 				let point1 = dvec2_to_point(curr - dir1 * distance_along_edge * roundness);
