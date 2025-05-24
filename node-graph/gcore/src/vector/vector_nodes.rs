@@ -536,6 +536,14 @@ async fn round_corners(
 				prev_rounded = true;
 			}
 
+			if is_closed {
+				let first_point = new_bezpath.get_seg(1).unwrap().start();
+				let last_point = new_bezpath.get_seg(new_bezpath.elements().len() - 1).unwrap().end();
+
+				if first_point != last_point {
+					new_bezpath.push(PathEl::LineTo(first_point));
+				}
+			}
 			new_bezpath.apply_affine(Affine::new(source_transform_inverse.to_cols_array()));
 			result.append_bezpath(new_bezpath);
 		}
