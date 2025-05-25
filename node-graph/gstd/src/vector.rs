@@ -233,14 +233,14 @@ fn to_path_segments(path: &mut Vec<path_bool::PathSegment>, subpath: &bezier_rs:
 		}
 		global_end = end;
 		let segment = match transformed.handles {
-			bezier_rs::BezierHandles::Linear => PathSegment::Line(start, end),
+			bezier_rs::BezierHandles::Linear => PathSegment::Cubic(start, start, end, end),
 			bezier_rs::BezierHandles::Quadratic { handle } => PathSegment::Quadratic(start, handle, end),
 			bezier_rs::BezierHandles::Cubic { handle_start, handle_end } => PathSegment::Cubic(start, handle_start, handle_end, end),
 		};
 		path.push(segment);
 	}
 	if let Some(start) = global_start {
-		path.push(PathSegment::Line(global_end, start));
+		path.push(PathSegment::Cubic(global_end, global_end, start, start));
 	}
 }
 
@@ -342,7 +342,7 @@ fn boolean_union(a: Path, b: Path) -> Vec<Path> {
 }
 
 fn path_bool(a: Path, b: Path, op: PathBooleanOperation) -> Vec<Path> {
-	match path_bool::path_boolean(&a, FillRule::NonZero, &b, FillRule::NonZero, op) {
+	match path_bool::linesweeper_bool(&a, FillRule::NonZero, &b, FillRule::NonZero, op) {
 		Ok(results) => results,
 		Err(e) => {
 			let a_path = path_bool::path_to_path_data(&a, 0.001);
