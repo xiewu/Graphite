@@ -38,9 +38,9 @@ Mission success will come when Graphite is an industry standard. A cohesive prod
 
 ## Funding
 
-Graphite has no investors to answer to and will always be free and open source. [Keavon](#keavon), the project founder, has been personally funding all expenses out-of-pocket and turning down a tech industry salary to work full-time bringing Graphite to life. He asks for [your support](/donate) bearing a small fraction of that cost.
+Graphite has no investors to answer to and will always be free and open source. The project runs entirely on donations and volunteer contributions. Its founder has turned down a tech industry salary to work full-time bringing Graphite to life. He asks for [your support](/donate) bearing a small fraction of that cost.
 
-Long-term, donations will be supplemented by revenue from optional cloud storage/sync and high-speed GPU render services.
+Long-term, a supplemental revenue source is planned from offering optional paid hosting of network rendering, multi-device sync, and remote storage services for professional users.
 
 </div>
 
