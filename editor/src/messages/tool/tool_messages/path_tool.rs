@@ -464,6 +464,8 @@ struct PathToolData {
 	frontier_handles_info: Option<HashMap<SegmentId, Vec<PointId>>>,
 	adjacent_anchor_offset: Option<DVec2>,
 	sliding_point_info: Option<SlidingPointInfo>,
+	last_xray_click_position: Option<DVec2>,
+	xray_cycle_index: usize,
 }
 
 impl PathToolData {
@@ -474,6 +476,23 @@ impl PathToolData {
 
 	fn remove_saved_points(&mut self) {
 		self.saved_points_before_anchor_select_toggle.clear();
+	}
+
+	fn reset_xray_cycle(&mut self) {
+		self.last_xray_click_position = None;
+		self.xray_cycle_index = 0;
+	}
+
+	fn advance_xray_cycle(&mut self, position: DVec2, available_layers: usize) -> usize {
+		if self.last_xray_click_position.map_or(true, |last_pos| last_pos.distance(position) > SELECTION_THRESHOLD) {
+			// New position, reset cycle
+			self.xray_cycle_index = 0;
+		} else {
+			// Same position, advance cycle
+			self.xray_cycle_index = (self.xray_cycle_index + 1) % available_layers.max(1);
+		}
+		self.last_xray_click_position = Some(position);
+		self.xray_cycle_index
 	}
 
 	pub fn selection_quad(&self, metadata: &DocumentMetadata) -> Quad {
@@ -2058,6 +2077,9 @@ impl Fsm for PathToolFsmState {
 			(_, PathToolMessage::DoubleClick { extend_selection, shrink_selection }) => {
 				// Double-clicked on a point (flip smooth sharp behaviour)
 				let nearest_point = shape_editor.find_nearest_point_indices(&document.network_interface, input.mouse.position, SELECTION_THRESHOLD);
+				// Filter if this is a group parent or an artboard
+				let xray_layers = document.click_list_no_parents(input).collect::<Vec<LayerNodeIdentifier>>();
+
 				if nearest_point.is_some() {
 					// Flip the selected point between smooth and sharp
 					if !tool_data.double_click_handled && tool_data.drag_start_pos.distance(input.mouse.position) <= DRAG_THRESHOLD {
@@ -2074,16 +2096,29 @@ impl Fsm for PathToolFsmState {
 					return PathToolFsmState::Ready;
 				}
 				// Double clicked on a filled region
-				else if let Some(layer) = document.click(input) {
+				else if let Some(layer) = {
+					log::debug!("[PathTool] X-ray cycle");
+					if xray_layers.is_empty() {
+						tool_data.reset_xray_cycle();
+						None
+					} else {
+						let total_count = xray_layers.len();
+						let cycle_index = tool_data.advance_xray_cycle(input.mouse.position, total_count);
+						let layer = xray_layers.get(cycle_index);
+						log::debug!("[PathTool] X-ray cycle index: {cycle_index} of {total_count}");
+						if cycle_index == 0 { xray_layers.first() } else { layer }
+					}
+				} {
 					let extend_selection = input.keyboard.get(extend_selection as usize);
 					let shrink_selection = input.keyboard.get(shrink_selection as usize);
-					if shape_editor.is_selected_layer(layer) {
+
+					if shape_editor.is_selected_layer(*layer) {
 						if extend_selection {
 							responses.add(NodeGraphMessage::SelectedNodesAdd { nodes: vec![layer.to_node()] });
 						} else if shrink_selection {
 							responses.add(NodeGraphMessage::SelectedNodesRemove { nodes: vec![layer.to_node()] });
 						} else {
-							shape_editor.select_connected_anchors(document, layer, input.mouse.position);
+							shape_editor.select_connected_anchors(document, *layer, input.mouse.position);
 						}
 					} else {
 						if extend_selection {
